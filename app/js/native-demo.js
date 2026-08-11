@@ -144,8 +144,6 @@ function nativeTools() {
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: {
         readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
         untrustedContentHint: true,
       },
       async execute(args = {}) {
@@ -172,7 +170,7 @@ function nativeTools() {
         required: ['title', 'priority'],
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      annotations: { untrustedContentHint: true },
       async execute({ title, priority }) {
         const cleanTitle = String(title ?? '').trim();
         if (!cleanTitle || !['high', 'normal', 'low'].includes(priority)) {
@@ -210,7 +208,7 @@ function nativeTools() {
         required: ['taskId'],
         additionalProperties: false,
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      annotations: { untrustedContentHint: true },
       async execute({ taskId }) {
         const task = tasks.find((candidate) => candidate.id === taskId);
         if (!task) {
