@@ -39,6 +39,16 @@
         >
           <span class="num">2</span>시뮬레이션
         </button>
+        <button
+          class="tab"
+          role="tab"
+          id="tab-btn-native"
+          aria-controls="tab-native"
+          aria-selected="false"
+          data-tab="native"
+        >
+          <span class="num">3</span>AI 여행 준비
+        </button>
       </nav>
       <div id="runtime-badge" class="badge">런타임 확인 중…</div>
     </header>
@@ -724,6 +734,124 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             </div>
           </div>
         </div>
+      </main>
+    </section>
+
+    <!-- 탭 3 · 실제 사용자 화면. 조작 버튼 없이 브라우저 에이전트가 WebMCP로 처리한다. -->
+    <section
+      class="tab-panel native-lab"
+      id="tab-native"
+      role="tabpanel"
+      aria-labelledby="tab-btn-native"
+      hidden
+    >
+      <main class="native-shell">
+        <header class="travel-hero">
+          <div class="travel-hero-copy">
+            <p class="travel-kicker">BUSAN · 2 NIGHTS</p>
+            <h2>부산 바다 주말</h2>
+            <p class="travel-dates">8월 23일 토요일 — 8월 25일 월요일</p>
+            <div class="travel-facts" aria-label="여행 주요 정보">
+              <span><b>KTX 117</b> 서울 08:10 → 부산 10:49</span>
+              <span><b>해운대 오션스테이</b> 체크인 15:00</span>
+              <span><b>2명</b> 김서윤 외 1명</span>
+            </div>
+          </div>
+          <div class="travel-date-tile" aria-hidden="true">
+            <span>AUG</span><strong>23</strong><small>D−12</small>
+          </div>
+        </header>
+
+        <div id="native-blocker" class="native-blocker" hidden></div>
+
+        <section class="agent-handoff" aria-labelledby="agent-handoff-title">
+          <div class="agent-orb" aria-hidden="true"><span></span></div>
+          <div class="agent-handoff-copy">
+            <p class="travel-kicker">CHROME AGENT</p>
+            <h3 id="agent-handoff-title">여행 준비를 에이전트에게 맡겨보세요</h3>
+            <p>WebMCP가 활성화된 외부 Chrome에 <b>WebMCP Inspector</b>를 설치한 뒤 아래 문장을 말합니다.</p>
+            <blockquote>“이 여행의 준비 목록을 확인하고, 숙소 체크인 시간 확인 작업을 완료해줘.”</blockquote>
+          </div>
+          <div id="native-status" class="native-status checking" role="status" aria-live="polite">
+            연결 확인 중
+          </div>
+        </section>
+
+        <div class="travel-layout">
+          <section class="travel-checklist" aria-labelledby="native-board-title">
+            <div class="travel-section-head">
+              <div>
+                <p class="travel-kicker">TO-DO BEFORE DEPARTURE</p>
+                <h3 id="native-board-title">출발 전 준비</h3>
+              </div>
+              <span id="native-task-count" class="native-counter">0개 완료</span>
+            </div>
+            <div class="travel-progress" aria-hidden="true"><span id="native-progress"></span></div>
+            <p id="native-progress-text" class="travel-progress-text">준비 현황을 불러오는 중입니다.</p>
+            <div id="native-task-list" class="native-task-list" aria-live="polite"></div>
+            <p class="agent-only-note">이 목록에는 조작 버튼이 없습니다. 변경은 연결된 브라우저 에이전트가 WebMCP 도구로 처리합니다.</p>
+          </section>
+
+          <aside class="travel-side">
+            <section class="agent-steps" aria-labelledby="native-prompt-title">
+              <p class="travel-kicker">HOW TO USE</p>
+              <h3 id="native-prompt-title">WebMCP 사용 방법</h3>
+              <div class="agent-use-modes">
+                <div class="agent-use-mode manual">
+                  <span>목록 확인 · 직접 실행</span>
+                  <strong>확장과 API 키가 필요하지 않습니다.</strong>
+                  <p>Chrome DevTools의 Application → WebMCP에서 도구를 확인하고 직접 실행할 수 있습니다.</p>
+                </div>
+                <div class="agent-use-mode chat">
+                  <span>자연어 채팅으로 실행</span>
+                  <strong>Inspector 확장과 Gemini API 키가 필요합니다.</strong>
+                  <p>확장의 AI가 자연어를 해석해 적절한 도구와 인자를 선택합니다.</p>
+                  <a
+                    class="extension-install"
+                    href="https://chromewebstore.google.com/detail/webmcp-model-context-tool/gbpdfapgefenggkahomfgkhfehlcenpd"
+                    target="_blank"
+                    rel="noreferrer"
+                  >Inspector 설치 ↗</a>
+                </div>
+              </div>
+              <p class="agent-chat-steps-label">Inspector 자연어 채팅 설정</p>
+              <ol>
+                <li><span>1</span><p>외부 Chrome에서 <code>chrome://flags/#enable-webmcp-testing</code>을 Enabled로 바꾸고 재시작합니다.</p></li>
+                <li><span>2</span><p><b>WebMCP Inspector</b> 확장을 설치하고 확장 안에서 Gemini API 키를 설정합니다. <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">API 키 만들기 ↗</a></p></li>
+                <li><span>3</span><p>이 페이지를 새로고침한 뒤 Chrome 확장 메뉴에서 Inspector를 열거나 도구 모음에 고정합니다.</p></li>
+                <li><span>4</span><p>확장의 에이전트 채팅에 원하는 여행 준비를 자연어로 말합니다.</p></li>
+              </ol>
+              <div class="prompt-suggestion">
+                <span>이어서 시도하기</span>
+                <p>“준비 목록에 ‘광안리 야경 투어 예약하기’를 보통 우선순위로 추가해줘.”</p>
+              </div>
+            </section>
+
+            <section class="native-events" aria-labelledby="native-events-title">
+              <div class="travel-section-head compact">
+                <div>
+                  <p class="travel-kicker">RECENT ACTIVITY</p>
+                  <h3 id="native-events-title">최근 처리</h3>
+                </div>
+              </div>
+              <ol id="native-event-log" class="native-event-log">
+                <li class="native-event-empty">에이전트가 처리한 내용이 여기에 표시됩니다.</li>
+              </ol>
+            </section>
+          </aside>
+        </div>
+
+        <details class="native-technical">
+          <summary>WebMCP 연결 정보</summary>
+          <div class="native-check-grid">
+            <div class="native-check" data-native-check="secure"><span class="native-check-dot"></span><div><b>보안 연결</b><span id="native-check-secure">확인 중</span></div></div>
+            <div class="native-check" data-native-check="namespace"><span class="native-check-dot"></span><div><b>Chrome WebMCP</b><span id="native-check-namespace">확인 중</span></div></div>
+            <div class="native-check" data-native-check="registration"><span class="native-check-dot"></span><div><b>여행 도구</b><span id="native-check-registration">대기 중</span></div></div>
+          </div>
+          <div class="native-tool-contract">
+            <code>list_trip_tasks</code><code>add_trip_task</code><code>complete_trip_task</code>
+          </div>
+        </details>
       </main>
     </section>
 

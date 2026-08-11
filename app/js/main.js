@@ -16,8 +16,13 @@ import {
   findBooking,
   SHORTAGE_MARK,
 } from './store.js';
-import { registerAllTools, syncContextualTools } from './tools.js';
+import {
+  registerAllTools,
+  unregisterAllTools,
+  syncContextualTools,
+} from './tools.js';
 import { scenario } from './scenario.js';
+import { activateNativeDemo, deactivateNativeDemo } from './native-demo.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -35,24 +40,65 @@ badge.title = `사용 가능한 메서드: ${runtime.methods.join(', ') || '(없
 console.log('[WebMCP] runtime =', runtime);
 
 // ---------------------------------------------------------------------------
-// 탭 + 두 탭을 잇는 딥링크
+// 탭 + 개념/시뮬레이션을 잇는 딥링크
 //
 // 탭으로 갈라 놓되, 개념 문단에서 시뮬레이터의 "그 부분"으로 바로 갈 수 있게
 // 하고 반대 방향 링크도 둔다. 링크가 한쪽으로만 나 있으면 결국
 // "앱을 참조하는 문서"로 읽힌다.
 // ---------------------------------------------------------------------------
 
-const TABS = ['concept', 'sim'];
+const TABS = ['concept', 'sim', 'native'];
 let currentTab = 'concept';
+let tabSelectionVersion = 0;
+
+function renderRuntimeBadge(tab = currentTab) {
+  if (tab === 'native') {
+    const available =
+      window.isSecureContext &&
+      document.modelContext &&
+      typeof document.modelContext.registerTool === 'function';
+    badge.className = `badge ${available ? 'native' : 'blocked'}`;
+    badge.textContent = available
+      ? 'Chrome 에이전트 연동 가능'
+      : 'WebMCP 설정 필요';
+    badge.title = available
+      ? '3번째 탭의 도구는 브라우저 에이전트만 호출할 수 있다.'
+      : 'Chrome WebMCP 실험 기능 또는 오리진 트라이얼이 필요하다.';
+    return;
+  }
+
+  badge.className = `badge ${runtime.mode}`;
+  badge.textContent =
+    runtime.mode === 'native'
+      ? `네이티브 WebMCP · ${runtime.namespace}`
+      : '내장 shim · 네이티브 WebMCP 없음 (chrome://flags/#enable-webmcp-testing)';
+  badge.title = `사용 가능한 메서드: ${runtime.methods.join(', ') || '(없음)'}`;
+}
 
 function selectTab(name, { push = true } = {}) {
   if (!TABS.includes(name) || name === currentTab) return;
+  const version = ++tabSelectionVersion;
+  if (currentTab === 'native') deactivateNativeDemo();
   if (currentTab === 'sim') stopAuto(); // 안 보이는 탭에서 자동 재생이 도는 것을 막는다
   currentTab = name;
 
   for (const t of TABS) {
     $(`#tab-${t}`).hidden = t !== name;
     $(`#tab-btn-${t}`).setAttribute('aria-selected', String(t === name));
+  }
+  renderRuntimeBadge(name);
+  if (name === 'native') {
+    const teardown = setSimulationToolsActive(false);
+    void teardown
+      .then(() => {
+        if (version !== tabSelectionVersion || currentTab !== 'native') return;
+        return activateNativeDemo();
+      })
+      .catch((error) =>
+        console.error('[WebMCP] 네이티브 탭 전환 실패:', error),
+      );
+  } else {
+    void setSimulationToolsActive(true);
   }
   if (push) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
@@ -636,49 +682,116 @@ $('#step-auto').addEventListener('click', () => {
   nextStep();
 });
 
-// ---------------------------------------------------------------------------
-// 부팅
-// ---------------------------------------------------------------------------
-
-await registerAllTools();
-
 // 선언형 폼의 대응 도구.
 // 네이티브 브라우저는 <form tool> 을 읽어 자체 레지스트리에 도구를 합성하는데,
 // 그 도구는 페이지에서 열람할 수 없다(브라우저가 소유). 시뮬레이터에서 같은
 // 동작을 보이기 위해, 폼을 채우고 제출하는 명령형 대응물을 따로 등록한다.
-await registerTool({
-  name: 'create_support_ticket_via_form',
-  description:
-    '문의 티켓 폼을 채워 제출한다. 선언형 <form toolname="create_support_ticket"> 을 ' +
-    '브라우저가 도구로 합성해 호출할 때와 동일한 경로를 탄다.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      bookingId: { type: 'string' },
-      body: { type: 'string' },
+function supportToolDescriptor() {
+  return {
+    name: 'create_support_ticket_via_form',
+    description:
+      '문의 티켓 폼을 채워 제출한다. 선언형 <form toolname="create_support_ticket"> 을 ' +
+      '브라우저가 도구로 합성해 호출할 때와 동일한 경로를 탄다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bookingId: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['bookingId', 'body'],
     },
-    required: ['bookingId', 'body'],
-  },
-  async execute({ bookingId, body }) {
-    const form = $('#ticket-form');
+    async execute({ bookingId, body }) {
+      const form = $('#ticket-form');
 
-    // 네이티브라면 실행 중인 폼이 :tool-form-active 의사 클래스에 매치된다.
-    // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
-    agentDrivingForm = true;
-    form.classList.add('tool-form-active');
-    try {
-      form.bookingId.value = bookingId;
-      await sleep(500);
-      form.body.value = body;
-      await sleep(400);
-      form.requestSubmit();
-    } finally {
-      form.classList.remove('tool-form-active');
-      agentDrivingForm = false;
-    }
-    return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
-  },
-});
+      // 네이티브라면 실행 중인 폼이 :tool-form-active 의사 클래스에 매치된다.
+      // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
+      agentDrivingForm = true;
+      form.classList.add('tool-form-active');
+      try {
+        form.bookingId.value = bookingId;
+        await sleep(500);
+        form.body.value = body;
+        await sleep(400);
+        form.requestSubmit();
+      } finally {
+        form.classList.remove('tool-form-active');
+        agentDrivingForm = false;
+      }
+      return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
+    },
+  };
+}
+
+function setDeclarativeSupportToolActive(active) {
+  const form = $('#ticket-form');
+  if (active) {
+    form.setAttribute('toolname', 'create_support_ticket');
+    form.setAttribute(
+      'tooldescription',
+      '고객 문의 티켓을 생성한다. 예약에 대한 투숙객 문의를 접수할 때 사용한다.',
+    );
+    form.setAttribute('toolautosubmit', '');
+    return;
+  }
+
+  form.removeAttribute('toolname');
+  form.removeAttribute('tooldescription');
+  form.removeAttribute('toolautosubmit');
+}
+
+let detachSupportTool = null;
+let simulationToolsDesired = false;
+let simulationToolLifecycle = Promise.resolve();
+let simulationToolVersion = 0;
+
+function setSimulationToolsActive(active) {
+  simulationToolsDesired = active;
+  const version = ++simulationToolVersion;
+
+  // 여행 탭 진입 시에는 네이티브 도구를 붙이기 전에 기존 도구를 즉시 제거한다.
+  if (!active) {
+    setDeclarativeSupportToolActive(false);
+    unregisterAllTools();
+    detachSupportTool?.();
+    detachSupportTool = null;
+    return simulationToolLifecycle;
+  }
+
+  simulationToolLifecycle = simulationToolLifecycle
+    .catch((error) => console.error('[WebMCP] 시뮬레이션 도구 전환 실패:', error))
+    .then(async () => {
+      if (
+        !simulationToolsDesired ||
+        version !== simulationToolVersion ||
+        detachSupportTool
+      ) {
+        return;
+      }
+
+      setDeclarativeSupportToolActive(true);
+      await registerAllTools();
+      if (!simulationToolsDesired || version !== simulationToolVersion) {
+        unregisterAllTools();
+        return;
+      }
+
+      const detach = await registerTool(supportToolDescriptor());
+      if (!simulationToolsDesired || version !== simulationToolVersion) {
+        detach();
+        unregisterAllTools();
+        return;
+      }
+      detachSupportTool = detach;
+    });
+
+  return simulationToolLifecycle;
+}
+
+// ---------------------------------------------------------------------------
+// 부팅
+// ---------------------------------------------------------------------------
+
+await setSimulationToolsActive(true);
 
 $('#demo-form-fill').addEventListener('click', async (event) => {
   const button = event.currentTarget;
@@ -701,12 +814,15 @@ renderVerify();
 // 진입 시 탭 결정: ?tab= > #해시 > 기본(개념)
 const params = new URLSearchParams(location.search);
 const autostep = Number(params.get('autostep'));
-const wantsSim =
-  params.get('tab') === 'sim' ||
-  location.hash === '#sim' ||
-  (Number.isFinite(autostep) && autostep > 0);
+const queryTab = params.get('tab');
+const hashTab = location.hash.slice(1);
+let initialTab = 'concept';
 
-if (wantsSim) selectTab('sim', { push: false });
+if (Number.isFinite(autostep) && autostep > 0) initialTab = 'sim';
+else if (TABS.includes(queryTab)) initialTab = queryTab;
+else if (TABS.includes(hashTab)) initialTab = hashTab;
+
+if (initialTab !== 'concept') selectTab(initialTab, { push: false });
 
 // ?autostep=N — 로드 직후 N 단계를 자동 진행한다.
 // 시연용이자, 헤드리스 스크린샷으로 스테퍼를 검증하는 수단이다.

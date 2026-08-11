@@ -272,8 +272,17 @@ const alwaysOn = [
 // ---------------------------------------------------------------------------
 
 let detachContextual = null;
+let detachAlwaysOn = null;
+let simulationToolsActive = false;
+let registrationVersion = 0;
 
 export async function syncContextualTools() {
+  if (!simulationToolsActive) {
+    detachContextual?.();
+    detachContextual = null;
+    return;
+  }
+
   const bookingId = state.selectedBookingId;
 
   if (!bookingId) {
@@ -304,5 +313,27 @@ export async function syncContextualTools() {
 }
 
 export async function registerAllTools() {
-  await registerAll(alwaysOn);
+  if (simulationToolsActive) return;
+
+  const version = ++registrationVersion;
+  simulationToolsActive = true;
+  const detach = await registerAll(alwaysOn);
+
+  // 탭을 전환하는 동안 등록이 끝났다면 방금 붙은 도구를 즉시 정리한다.
+  if (!simulationToolsActive || version !== registrationVersion) {
+    detach();
+    return;
+  }
+
+  detachAlwaysOn = detach;
+  await syncContextualTools();
+}
+
+export function unregisterAllTools() {
+  registrationVersion += 1;
+  simulationToolsActive = false;
+  detachContextual?.();
+  detachContextual = null;
+  detachAlwaysOn?.();
+  detachAlwaysOn = null;
 }

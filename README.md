@@ -195,7 +195,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 ### 화면 구성
 
-탭 두 개다.
+탭은 세 개다.
 
 **1 · 개념** — 이 README의 앞부분을 읽는 형태로 옮긴 문서. 각 절 끝에 시뮬레이션의
 해당 부분으로 바로 가는 딥링크가 붙어 있다 (`data-goto`).
@@ -205,9 +205,16 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 에이전트 쪽(시나리오 스테퍼, 수동 호출, 로그)이다. 시뮬레이션의 각 블록에는 개념
 탭의 해당 절로 돌아가는 역방향 링크가 있다.
 
-두 탭은 **같은 컴포넌트와 같은 타입 스케일**을 쓴다 (`.card`, `.code`, `.chip`,
-`.result`, `.callout`). 개념 탭의 비교 도식과 스테퍼 카드가 같은 카드 크롬을
-공유하는 식이다 — 탭으로 갈라 놓아도 한 제품으로 읽히게 하기 위해서다.
+**3 · AI 여행 준비** — 부산 여행 일정과 출발 전 체크리스트를 보여주는 사용자용
+서비스 화면이다. 사람용 추가·완료 버튼은 없으며, Chrome의 WebMCP 에이전트가 목록을
+조회하고 변경한다. 내부적으로 `document.modelContext.registerTool()`로 여행 도구 세
+개를 직접 등록하고, shim이나 페이지 내부 호출은 제공하지 않는다. 탭을 벗어나면
+`AbortController`로 세 도구를 해제한다.
+
+개념 탭과 시뮬레이션 탭은 **같은 컴포넌트와 같은 타입 스케일**을 쓴다
+(`.card`, `.code`, `.chip`, `.result`, `.callout`). 개념 탭의 비교 도식과 스테퍼
+카드가 같은 카드 크롬을 공유하는 식이다 — 탭으로 갈라 놓아도 한 제품으로 읽히게
+하기 위해서다.
 
 시뮬레이터는 등록된 도구 목록을 읽고, 인자 JSON을 만들어 호출하고, 결과를 본다.
 호출되는 `execute()`는 진짜 에이전트가 부르는 것과 **완전히 같은 함수**다.
@@ -217,7 +224,34 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 | | |
 |---|---|
 | `#sim`, `?tab=sim` | 시뮬레이션 탭으로 진입 |
+| `#native`, `?tab=native` | AI 여행 준비 탭으로 진입 |
 | `?autostep=N` | 시뮬 탭에서 N단계까지 자동 진행 (시연·검증용) |
+
+실제 탭에서 브라우저 에이전트에게 다음과 같이 지시할 수 있다.
+
+> 이 여행의 준비 목록을 확인하고, 숙소 체크인 시간 확인 작업을 완료해줘.
+
+이 호출이 성립하려면 HTTPS 또는 localhost 주소의 사이트를 WebMCP가 활성화된
+Chrome으로 직접 열고,
+WebMCP 도구 호출을 지원하는 에이전트(예: Model Context Tool Inspector 또는
+WebMCP를 지원하는 DevTools 에이전트)를 그 탭에 연결해야 한다. 일반 웹 페이지는
+에이전트 역할을 대신할 수 없다. 일반 HTTP 또는 `file://` 주소에서는 보안 컨텍스트
+조건을 충족하지 않아 여행 도구가 등록되지 않는다.
+
+Model Context Tool Inspector로 자연어 호출을 시험할 때는 다음 준비가 모두 필요하다.
+
+1. 외부 Chrome에서 `chrome://flags/#enable-webmcp-testing` 활성화 후 재시작
+2. Model Context Tool Inspector 확장 설치
+3. 확장 설정에 Gemini API 키 입력
+4. 대상 페이지 새로고침 후 확장 사이드패널에서 프롬프트 입력
+
+확장만 설치하고 Chrome의 WebMCP 기능이나 Gemini API 키를 설정하지 않으면 자연어
+호출은 동작하지 않는다. 대상 사이트는 보안상 확장 설치 여부와 확장의 API 키 설정
+상태를 감지할 수 없다.
+
+단, 도구 등록 자체와 `getTools()`를 통한 목록 조회, `executeTool()`을 통한 직접 실행은
+Inspector나 Gemini API 키를 요구하지 않는다. Chrome DevTools의 Application → WebMCP
+패널에서도 확장 없이 목록 확인과 수동 실행을 할 수 있다.
 
 승인 게이트가 열리면 개념 탭을 읽는 중이어도 **자동으로 시뮬 탭으로 전환**된다.
 안 보이는 탭에서 Promise만 매달려 있으면 멈춘 것처럼 보이기 때문이다. 같은 이유로
@@ -354,10 +388,11 @@ JSON.stringify({
 
 ```
 app/
-  index.html          1부 개념 리더 + 2부 운영 콘솔/시뮬레이터
+  index.html          개념 + 시뮬레이션 + AI 여행 준비 화면
   styles.css
   js/
     webmcp.js         어댑터: 탐지 · shim · 등록 래퍼 · 미러 · 결과 정규화
+    native-demo.js    shim 없는 여행 준비 도구 등록 · 실행 기록
     store.js          운영 도메인 상태 + 승인 게이트 + 리셋
     tools.js          WebMCP 도구 정의 (여기가 본체)
     scenario.js       에이전트 루프 (async generator, 지연 평가)
@@ -365,4 +400,5 @@ app/
 README.md
 ```
 
-읽는 순서는 `tools.js` → `scenario.js` → `webmcp.js` → `main.js`를 권한다.
+시뮬레이터는 `tools.js` → `scenario.js` → `webmcp.js` → `main.js`, 네이티브 예시는
+`native-demo.js` → `main.js` 순서로 읽는 것을 권한다.
