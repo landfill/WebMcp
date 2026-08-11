@@ -13,7 +13,8 @@ import {
   commit,
   resolveApproval,
   resetState,
-  findOrder,
+  findBooking,
+  SHORTAGE_MARK,
 } from './store.js';
 import { registerAllTools, syncContextualTools } from './tools.js';
 import { scenario } from './scenario.js';
@@ -89,14 +90,14 @@ function goTo(target) {
   selectTab('sim');
   setTimeout(() => {
     if (kind === 'tool' || kind === 'refund') {
-      const name = kind === 'refund' ? 'issue_refund' : arg;
+      const name = kind === 'refund' ? 'cancel_booking' : arg;
       if ([...select.options].some((o) => o.value === name)) {
         select.value = name;
         showToolDesc();
         fillSampleArgs();
         if (kind === 'refund') {
           $('#tool-args').value = JSON.stringify(
-            { orderId: 'ORD-1004', reason: '고객 변심' },
+            { bookingId: 'BKG-2004', reason: '고객 일정 변경' },
             null,
             2,
           );
@@ -106,8 +107,8 @@ function goTo(target) {
     } else if (kind === 'form') {
       land($('#form-block'));
     } else if (kind === 'lifecycle') {
-      openOrder('ORD-1002');
-      land($('#order-detail'));
+      openBooking('BKG-2002');
+      land($('#booking-detail'));
     } else {
       land($('#stepper-block'));
     }
@@ -226,29 +227,30 @@ function statusChip(s) {
   return `<span class="status status-${s}">${s}</span>`;
 }
 
-function renderOrders(s) {
-  $('#orders tbody').innerHTML = s.orders
+function renderBookings(s) {
+  $('#bookings tbody').innerHTML = s.bookings
     .map(
-      (o) => `<tr data-id="${o.id}">
-        <td class="mono">${o.id}${o.refunded ? ' ↩︎' : ''}</td>
-        <td>${o.customer}</td>
-        <td class="mono">${o.items.map((i) => `${i.sku}×${i.qty}`).join(', ')}</td>
-        <td>${statusChip(o.status)}</td>
-        <td><button class="link" data-open="${o.id}">열기</button></td>
+      (b) => `<tr data-id="${b.id}">
+        <td class="mono">${b.id}${b.cancelled ? ' ↩︎' : ''}</td>
+        <td>${b.guest}</td>
+        <td class="mono">${b.rooms.map((r) => `${r.code}×${r.qty}`).join(', ')}</td>
+        <td class="mono">${b.checkIn} · ${b.nights}박</td>
+        <td>${statusChip(b.status)}</td>
+        <td><button class="link" data-open="${b.id}">열기</button></td>
       </tr>`,
     )
     .join('');
 }
 
-function renderInventory(s) {
-  $('#inventory tbody').innerHTML = s.inventory
-    .map((i) => {
-      const avail = i.onHand - i.reserved;
+function renderRooms(s) {
+  $('#rooms tbody').innerHTML = s.rooms
+    .map((r) => {
+      const avail = r.total - r.assigned;
       return `<tr>
-        <td class="mono">${i.sku}</td>
-        <td>${i.name}</td>
-        <td>${i.onHand}</td>
-        <td>${i.reserved}</td>
+        <td class="mono">${r.code}</td>
+        <td>${r.name}<br /><span class="sub">${r.hotel}</span></td>
+        <td>${r.total}</td>
+        <td>${r.assigned}</td>
         <td class="${avail <= 0 ? 'zero' : ''}">${avail}</td>
       </tr>`;
     })
@@ -256,12 +258,14 @@ function renderInventory(s) {
 }
 
 function renderDetail(s) {
-  const box = $('#order-detail');
-  const order = s.selectedOrderId ? findOrder(s.selectedOrderId) : null;
-  box.hidden = !order;
-  if (order) {
-    $('#detail-id').textContent = order.id;
-    $('#detail-note').textContent = order.note || '(메모 없음)';
+  const box = $('#booking-detail');
+  const booking = s.selectedBookingId
+    ? findBooking(s.selectedBookingId)
+    : null;
+  box.hidden = !booking;
+  if (booking) {
+    $('#detail-id').textContent = booking.id;
+    $('#detail-note').textContent = booking.note || '(메모 없음)';
   }
 }
 
@@ -287,8 +291,8 @@ function renderAudit(s) {
 }
 
 subscribe((s) => {
-  renderOrders(s);
-  renderInventory(s);
+  renderBookings(s);
+  renderRooms(s);
   renderDetail(s);
   renderApprovals(s);
   renderAudit(s);
@@ -298,16 +302,16 @@ subscribe((s) => {
 // 상호작용
 // ---------------------------------------------------------------------------
 
-function openOrder(id) {
-  commit(`주문 상세 열기 ${id}`, (s) => {
-    s.selectedOrderId = id;
+function openBooking(id) {
+  commit(`예약 상세 열기 ${id}`, (s) => {
+    s.selectedBookingId = id;
   });
   syncContextualTools();
 }
 
 document.addEventListener('click', (e) => {
   const open = e.target.dataset?.open;
-  if (open) openOrder(open);
+  if (open) openBooking(open);
   const ap = e.target.dataset?.approve;
   if (ap) resolveApproval(ap, true);
   const rj = e.target.dataset?.reject;
@@ -315,8 +319,8 @@ document.addEventListener('click', (e) => {
 });
 
 $('#close-detail').addEventListener('click', () => {
-  commit('주문 상세 닫기', (s) => {
-    s.selectedOrderId = null;
+  commit('예약 상세 닫기', (s) => {
+    s.selectedBookingId = null;
   });
   syncContextualTools();
 });
@@ -331,27 +335,30 @@ let agentDrivingForm = false;
 $('#ticket-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const orderId = fd.get('orderId');
+  const bookingId = fd.get('bookingId');
   const body = fd.get('body');
   const byAgent = e.agentInvoked === true || agentDrivingForm;
 
-  addTicket(orderId, body, byAgent);
+  addTicket(bookingId, body, byAgent);
   e.target.reset();
 
   if (byAgent && typeof e.respondWith === 'function') {
     e.respondWith(
-      Promise.resolve(textResult(`티켓 생성됨: ${orderId} — ${body}`)),
+      Promise.resolve(textResult(`티켓 생성됨: ${bookingId} — ${body}`)),
     );
   }
 });
 
-function addTicket(orderId, body, byAgent = false) {
+function addTicket(bookingId, body, byAgent = false) {
   const li = document.createElement('li');
   li.innerHTML =
     `<span class="t">${new Date().toLocaleTimeString('ko-KR')}</span> ` +
-    `${byAgent ? '🤖 ' : ''}${escapeHtml(orderId)} — ${escapeHtml(body)}`;
+    `${byAgent ? '🤖 ' : ''}${escapeHtml(bookingId)} — ${escapeHtml(body)}`;
   $('#tickets').prepend(li);
-  commit(`문의 티켓 생성 (${orderId})${byAgent ? ' — 에이전트' : ''}`, () => {});
+  commit(
+    `문의 티켓 생성 (${bookingId})${byAgent ? ' — 에이전트' : ''}`,
+    () => {},
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -489,17 +496,17 @@ function highlight(focus) {
     .forEach((tr) => tr.classList.remove('flash'));
   if (!focus) return;
 
-  const ids = new Set(focus.orders ?? []);
+  const ids = new Set(focus.bookings ?? []);
   if (focus.status)
-    for (const o of state.orders)
-      if (o.status === focus.status) ids.add(o.id);
+    for (const b of state.bookings)
+      if (b.status === focus.status) ids.add(b.id);
 
   for (const id of ids)
-    $(`#orders tbody tr[data-id="${id}"]`)?.classList.add('flash');
+    $(`#bookings tbody tr[data-id="${id}"]`)?.classList.add('flash');
 
-  for (const sku of focus.skus ?? []) {
-    const row = [...document.querySelectorAll('#inventory tbody tr')].find(
-      (tr) => tr.textContent.includes(sku),
+  for (const code of focus.rooms ?? []) {
+    const row = [...document.querySelectorAll('#rooms tbody tr')].find(
+      (tr) => tr.textContent.includes(code),
     );
     row?.classList.add('flash');
   }
@@ -557,7 +564,7 @@ async function nextStep() {
     const result = await invoke(step.tool, step.args ?? {});
     lastResult = result;
 
-    const failed = String(result).includes('재고 부족');
+    const failed = String(result).includes(SHORTAGE_MARK);
     // 실패는 이 데모의 핵심 장면이다 — 카드 전체를 실패 색으로 승격시킨다
     if (failed) {
       $('#step-card').classList.remove(meta.cls);
@@ -637,12 +644,12 @@ await registerTool({
   inputSchema: {
     type: 'object',
     properties: {
-      orderId: { type: 'string' },
+      bookingId: { type: 'string' },
       body: { type: 'string' },
     },
-    required: ['orderId', 'body'],
+    required: ['bookingId', 'body'],
   },
-  async execute({ orderId, body }) {
+  async execute({ bookingId, body }) {
     const form = $('#ticket-form');
 
     // 네이티브라면 브라우저가 :tool-form-active 를 알아서 붙인다.
@@ -650,7 +657,7 @@ await registerTool({
     agentDrivingForm = true;
     form.classList.add('tool-form-active');
     try {
-      form.orderId.value = orderId;
+      form.bookingId.value = bookingId;
       await sleep(500);
       form.body.value = body;
       await sleep(400);
@@ -659,7 +666,7 @@ await registerTool({
       form.classList.remove('tool-form-active');
       agentDrivingForm = false;
     }
-    return textResult(`티켓 생성됨: ${orderId} — ${body}`);
+    return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
   },
 });
 

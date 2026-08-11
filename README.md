@@ -44,17 +44,17 @@ MCP(Model Context Protocol)와 이름이 같은 이유는 개념이 같기 때�
 const controller = new AbortController();
 
 await document.modelContext.registerTool({
-  name: 'allocate_stock',
-  description: '주문에 재고를 할당한다. 재고가 모자라면 부족분을 보고한다.',
+  name: 'assign_rooms',
+  description: '예약에 객실을 배정한다. 잔여 객실이 모자라면 부족분을 보고한다.',
   inputSchema: {
     type: 'object',
-    properties: { orderId: { type: 'string' } },
-    required: ['orderId'],
+    properties: { bookingId: { type: 'string' } },
+    required: ['bookingId'],
   },
   annotations: { readOnlyHint: false, destructiveHint: false },
-  async execute({ orderId }) {
+  async execute({ bookingId }) {
     // ... 실제 앱 로직 — UI 버튼이 부르는 그 함수를 그대로 부른다
-    return { content: [{ type: 'text', text: `${orderId} 할당 완료` }] };
+    return { content: [{ type: 'text', text: `${bookingId} 배정 완료` }] };
   },
 }, { signal: controller.signal });
 
@@ -86,8 +86,8 @@ controller.abort(); // 등록 해제
 <form toolname="create_support_ticket"
       tooldescription="고객 문의 티켓을 생성한다."
       toolautosubmit>
-  <input name="orderId"
-         toolparamdescription="대상 주문 ID (예: ORD-1002)" required />
+  <input name="bookingId"
+         toolparamdescription="대상 예약 ID (예: BKG-2002)" required />
   <textarea name="body"
             toolparamdescription="문의 내용 본문" required></textarea>
   <button type="submit">티켓 생성</button>
@@ -121,8 +121,8 @@ form.addEventListener('submit', (e) => {
 ### 상태 공유
 
 도구 목록 자체가 상태를 표현한다. 로그인 전에는 `login` 도구만, 로그인 후에는
-`list_orders`가 나타나는 식. 이 데모에서는 **주문 상세 화면을 열었을 때만
-`add_order_note` 도구가 등록**되도록 해서 이 패턴을 보여준다.
+`list_bookings`가 나타나는 식. 이 데모에서는 **예약 상세 화면을 열었을 때만
+`add_booking_note` 도구가 등록**되도록 해서 이 패턴을 보여준다.
 
 ---
 
@@ -194,7 +194,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 **1 · 개념** — 이 README의 앞부분을 읽는 형태로 옮긴 문서. 각 절 끝에 시뮬레이션의
 해당 부분으로 바로 가는 딥링크가 붙어 있다 (`data-goto`).
 
-**2 · 시뮬레이션** — 왼쪽은 사람이 쓰는 운영 화면(주문/재고/문의 폼), 오른쪽은
+**2 · 시뮬레이션** — 왼쪽은 사람이 쓰는 운영 화면(예약/객실 재고/문의 폼), 오른쪽은
 에이전트 쪽(시나리오 스테퍼, 수동 호출, 로그). 시뮬레이션의 각 블록에는 개념
 탭의 해당 절로 돌아가는 역방향 링크가 있다.
 
@@ -224,14 +224,14 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 | 도구 | 성격 |
 |---|---|
-| `list_orders` | 읽기 전용 |
-| `get_order` | 읽기 전용 |
-| `check_inventory` | 읽기 전용 |
-| `allocate_stock` | 변경 · **재고 부족 시 실패하고 이유를 설명** |
-| `restock_item` | 변경 |
-| `advance_order_status` | 변경 |
-| `issue_refund` | **파괴적 · 사람 승인 필수** |
-| `add_order_note` | 주문 상세가 열려 있을 때만 존재 |
+| `list_bookings` | 읽기 전용 |
+| `get_booking` | 읽기 전용 |
+| `check_availability` | 읽기 전용 |
+| `assign_rooms` | 변경 · **잔여 객실 부족 시 실패하고 이유를 설명** |
+| `open_room_block` | 변경 · 호텔에서 객실을 추가 확보 |
+| `advance_booking_status` | 변경 |
+| `cancel_booking` | **파괴적 · 사람 승인 필수** (취소 + 환불) |
+| `add_booking_note` | 예약 상세가 열려 있을 때만 존재 |
 | `create_support_ticket_via_form` | 선언형 폼에 대응하는 명령형 버전 |
 
 ### 운영 시나리오 스테퍼
@@ -242,8 +242,8 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 ```
 ① 에이전트의 판단   왜 이 도구를 골랐는가
-② 도구 호출        allocate_stock({"orderId":"ORD-1002"})
-③ 결과             재고 부족으로 할당 실패. TRV-MUG: 필요 3, 가용 0 …
+② 도구 호출        assign_rooms({"bookingId":"BKG-2002"})
+③ 결과             잔여 객실 부족으로 배정 실패. SEOUL-SUITE: 필요 3실, 잔여 0실 …
 ```
 
 그리고 호출이 끝나면 **왼쪽 표에서 그 도구가 건드린 행에 불이 들어온다.**
@@ -252,16 +252,16 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 흐름:
 
-1. `list_orders({status:'pending'})` — 뭐가 밀렸는지 본다
-2. `allocate_stock(ORD-1001)` — 성공
-3. `allocate_stock(ORD-1002)` — **실패한다** (TRV-TEE·TRV-MUG 가용 0) ← 카드가 붉게 승격
-4. `check_inventory` → `restock_item`으로 부족분만 입고
-5. `allocate_stock` 재시도 → 성공
-6. `advance_order_status`로 출고 처리
-7. 환불은 **자동으로 하지 않는다** — 파괴적 작업이므로
+1. `list_bookings({status:'requested'})` — 뭐가 밀렸는지 본다
+2. `assign_rooms(BKG-2001)` — 성공
+3. `assign_rooms(BKG-2002)` — **실패한다** (BUSAN-CITY·SEOUL-SUITE 잔여 0) ← 카드가 붉게 승격
+4. `check_availability` → `open_room_block`으로 부족분만 추가 확보
+5. `assign_rooms` 재시도 → 성공
+6. `advance_booking_status`로 바우처 발급
+7. 취소·환불은 **자동으로 하지 않는다** — 파괴적 작업이므로
 
-여기서 봐야 할 것은 3번이다. 도구가 예외를 던지는 대신 *"필요 3, 가용 0. restock_item으로
-입고한 뒤 다시 시도하라"* 는 문장을 돌려주기 때문에 에이전트가 스스로 복구할 수 있다.
+여기서 봐야 할 것은 3번이다. 도구가 예외를 던지는 대신 *"필요 3실, 잔여 0실. open_room_block으로
+객실을 추가 확보한 뒤 다시 시도하라"* 는 문장을 돌려주기 때문에 에이전트가 스스로 복구할 수 있다.
 **도구의 에러 메시지는 사람이 아니라 에이전트를 위한 다음 지시문이다.**
 
 > 구현 주의: `scenario.js`는 단계 배열이 아니라 **async generator**다. 본문은
@@ -301,7 +301,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 즉 `chrome://flags/#devtools-webmcp-support`는 API 동작에는 필요 없지만,
 **엔드투엔드 검증에는 사실상 필수**다. 켜고 DevTools의 WebMCP 패널에서
-명령형 도구 8개(주문 상세를 열면 `add_order_note`가 붙어 9개) +
+명령형 도구 7개(예약 상세를 열면 `add_booking_note`가 붙어 8개, 폼 대응물까지 9개) +
 선언형 `create_support_ticket`이 보이는지 확인하라.
 
 콘솔에서 빠르게 확인하려면:
@@ -317,7 +317,7 @@ JSON.stringify({
 
 ### 승인 게이트
 
-`issue_refund`를 직접 호출해 보면, `execute()`가 화면에 승인 카드를 띄우고
+`cancel_booking`을 직접 호출해 보면, `execute()`가 화면에 승인 카드를 띄우고
 사람이 버튼을 누를 때까지 **Promise를 pending 상태로 붙잡는다**. 거부하면
 아무것도 바꾸지 않고 그 사실을 문자열로 보고한다. 되돌릴 수 없는 작업을 다루는
 기본 패턴이다.
@@ -327,7 +327,7 @@ JSON.stringify({
 ## 5. 도구를 설계할 때의 원칙
 
 1. **도구 하나 = 사용자가 UI에서 하는 의미 있는 작업 하나.** DB CRUD를 그대로
-   노출하지 마라. `update_row`가 아니라 `allocate_stock`이다.
+   노출하지 마라. `update_row`가 아니라 `assign_rooms`다.
 2. **description은 프롬프트다.** 무엇을 하는지만이 아니라 *언제 쓰는지*, 실패하면
    무엇을 해야 하는지를 적어라.
 3. **실패는 예외가 아니라 설명이다.** throw 하면 에이전트는 막힌다. 문장으로 돌려주면
