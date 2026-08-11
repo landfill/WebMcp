@@ -4,6 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>WebMCP 실습 랩</title>
+
+    <!--
+      오리진 트라이얼 토큰.
+      플래그를 켜지 않은 방문자에게도 네이티브 WebMCP 를 켜려면 필요하다.
+      https://developer.chrome.com/origintrials 에서 배포 도메인으로 발급한 뒤
+      아래 주석을 풀고 TOKEN 을 교체한다. 토큰은 도메인마다 다르므로
+      Vercel 프리뷰 URL(배포마다 바뀜)에서는 동작하지 않는다.
+    -->
+    <!-- <meta http-equiv="origin-trial" content="TOKEN" /> -->
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -367,8 +376,8 @@ restock_item 으로 입고한 뒤 다시 시도하라.</pre>
           <p class="eyebrow">Trevally 운영 콘솔</p>
           <h2>주문·재고를 다루는 에이전트</h2>
           <p>
-            왼쪽은 사람이 쓰는 운영 화면, 오른쪽은 에이전트 쪽이다. 도구 호출이
-            끝나면 그 호출이 건드린 행에 불이 들어온다.
+            도구 호출이 끝나면 그 호출이 건드린 행에 불이 들어온다. 오른쪽 한 수와
+            왼쪽 한 줄을 짝지어 보면 된다.
           </p>
         </div>
         <button class="crosslink back" data-goto="concept:sec-how">
@@ -379,6 +388,13 @@ restock_item 으로 입고한 뒤 다시 시도하라.</pre>
       <main class="layout">
         <!-- 왼쪽: 운영 화면 -->
         <div class="panel">
+          <div class="panel-label human">
+            <span class="chip">👤 사람</span>
+            <div>
+              <b>운영 화면</b>
+              <span>사람이 클릭해서 쓰는 평범한 앱. 에이전트가 바꾸는 대상이다.</span>
+            </div>
+          </div>
           <div class="block">
             <div class="block-head"><h3>주문</h3></div>
             <table id="orders" class="grid">
@@ -477,6 +493,14 @@ restock_item 으로 입고한 뒤 다시 시도하라.</pre>
 
         <!-- 오른쪽: 에이전트 -->
         <div class="panel">
+          <div class="panel-label agent">
+            <span class="chip">🤖 에이전트</span>
+            <div>
+              <b>도구 호출</b>
+              <span>왼쪽을 픽셀로 더듬지 않고 WebMCP 도구를 부른다.</span>
+            </div>
+          </div>
+
           <div id="approvals" class="approvals"></div>
 
           <div class="block stepper" id="stepper-block">

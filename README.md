@@ -160,6 +160,33 @@ npm start          # http://localhost:4173
 shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이게 중요한 이유:
 항상 동작하는 shim은 데모를 통과시키되 WebMCP에 대해서는 아무것도 증명하지 못한다.
 
+### 배포 (Vercel)
+
+빌드가 없는 정적 사이트다. 저장소를 연결하면 그대로 뜬다 — `vercel.json`이
+`outputDirectory: "app"`을 지정한다. 별도 프레임워크 설정은 필요 없다.
+
+배포해도 **페이지와 시뮬레이터는 전부 동작한다.** shim 경로는 순수 JS라 환경을
+타지 않는다. 갈리는 건 네이티브 WebMCP 활성화 여부다:
+
+| 방문자 | 결과 |
+|---|---|
+| `chrome://flags/#enable-webmcp-testing`를 켠 Chrome 149+ | 🟢 네이티브. 플래그는 브라우저 설정이라 도메인을 가리지 않는다 |
+| 플래그를 안 켠 일반 방문자 | 🟡 shim. 네이티브를 켜려면 오리진 트라이얼 토큰이 필요하다 |
+
+**오리진 트라이얼 토큰**은 [developer.chrome.com/origintrials](https://developer.chrome.com/origintrials)에서
+배포 도메인으로 발급받아 `app/index.html` 상단의 주석 처리된
+`<meta http-equiv="origin-trial">`에 넣으면 된다.
+
+> 토큰은 **오리진마다** 발급된다. Vercel 프리뷰 URL은 배포마다 해시가 바뀌므로
+> 토큰이 맞지 않는다. 고정된 프로덕션 도메인에만 적용하라.
+
+그 외 배포 환경에서 확인할 것:
+
+- **HTTPS** — Vercel이 기본 제공하므로 보안 컨텍스트 조건은 충족된다
+- **`Origin-Agent-Cluster: ?0`을 보내지 않을 것** — 이 헤더가 붙으면 API가 꺼진다.
+  Vercel은 기본으로 붙이지 않으며, `vercel.json`에서도 설정하지 않았다
+- **헤드리스 불가는 그대로** — 배포하든 로컬이든 탭이 열려 있어야 도구가 산다
+
 ### 화면 구성
 
 탭 두 개다.
