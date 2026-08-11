@@ -122,6 +122,14 @@ const alwaysOn = [
     execute({ bookingId }) {
       const booking = findBooking(bookingId);
       if (!booking) return textResult(`예약을 찾을 수 없다: ${bookingId}`);
+      // 취소된 예약은 status 가 requested 로 돌아가 있다(객실을 반납했으므로).
+      // 상태만 보면 "아직 배정 안 된 예약"과 구별되지 않아 다시 집히고,
+      // 반납했던 객실을 도로 점유한다.
+      if (booking.cancelled)
+        return textResult(
+          `${bookingId} 는 취소·환불된 예약이라 배정할 수 없다. ` +
+            `투숙객이 다시 여행을 원하면 새 예약을 만들어야 한다.`,
+        );
       if (booking.status !== 'requested')
         return textResult(
           `${bookingId} 는 이미 ${booking.status} 상태다. requested 예약만 배정할 수 있다.`,
@@ -184,6 +192,12 @@ const alwaysOn = [
     execute({ bookingId }) {
       const booking = findBooking(bookingId);
       if (!booking) return textResult(`예약을 찾을 수 없다: ${bookingId}`);
+      // 같은 이유로 여기도 막는다. 안 막으면 취소된 예약이 객실을 한 실도
+      // 잡지 않은 채 confirmed 로 올라선다.
+      if (booking.cancelled)
+        return textResult(
+          `${bookingId} 는 취소·환불된 예약이라 진행시킬 수 없다.`,
+        );
       const idx = STATUS_FLOW.indexOf(booking.status);
       if (idx === STATUS_FLOW.length - 1)
         return textResult(`${bookingId} 는 이미 최종 상태(completed)다.`);

@@ -22,8 +22,12 @@ export async function* scenario() {
     focus: { status: 'requested' },
   };
 
-  // ↓ 이 시점의 실제 상태를 읽는다
-  const requested = state.bookings.filter((b) => b.status === 'requested');
+  // ↓ 이 시점의 실제 상태를 읽는다.
+  // 취소된 예약도 status 는 requested 다 — 도구가 막아 주지만, 애초에
+  // 집지 않는 편이 에이전트의 판단으로도 옳다.
+  const requested = state.bookings.filter(
+    (b) => b.status === 'requested' && !b.cancelled,
+  );
 
   if (requested.length === 0) {
     yield {
