@@ -53,8 +53,11 @@ function seed() {
       id: 'BKG-2004',
       guest: '최하은',
       status: 'ticketed',
-      checkIn: '04-18',
-      nights: 2,
+      // 04-15~04-18. BKG-2002(04-14~04-17)와 겹쳐야 한다 —
+      // 재고를 객실 타입별 단순 카운트로 두었으므로, 투숙 기간이 겹치지 않는
+      // 예약이 서로 객실을 잠그면 화면이 데이터와 모순돼 보인다.
+      checkIn: '04-15',
+      nights: 3,
       rooms: [{ code: 'BUSAN-CITY', qty: 2 }],
       note: '',
       cancelled: false,
