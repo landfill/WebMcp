@@ -265,6 +265,7 @@ export async function activateNativeDemo() {
   registrationController = controller;
   try {
     for (const tool of nativeTools()) {
+      if (version !== activationVersion || controller.signal.aborted) return;
       await context.registerTool(tool, { signal: controller.signal });
     }
     if (version !== activationVersion || controller.signal.aborted) return;
@@ -273,6 +274,7 @@ export async function activateNativeDemo() {
   } catch (error) {
     controller.abort();
     if (registrationController === controller) registrationController = null;
+    if (version !== activationVersion || error?.name === 'AbortError') return;
     setCheck('registration', 'failed', '실패 · 등록 거부');
     setStatus('error', '도구 등록 실패');
     showBlocker(

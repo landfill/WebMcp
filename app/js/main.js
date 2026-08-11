@@ -49,6 +49,7 @@ console.log('[WebMCP] runtime =', runtime);
 
 const TABS = ['concept', 'sim', 'native'];
 let currentTab = 'concept';
+let tabSelectionVersion = 0;
 
 function renderRuntimeBadge(tab = currentTab) {
   if (tab === 'native') {
@@ -76,6 +77,7 @@ function renderRuntimeBadge(tab = currentTab) {
 
 function selectTab(name, { push = true } = {}) {
   if (!TABS.includes(name) || name === currentTab) return;
+  const version = ++tabSelectionVersion;
   if (currentTab === 'native') deactivateNativeDemo();
   if (currentTab === 'sim') stopAuto(); // 안 보이는 탭에서 자동 재생이 도는 것을 막는다
   currentTab = name;
@@ -86,8 +88,15 @@ function selectTab(name, { push = true } = {}) {
   }
   renderRuntimeBadge(name);
   if (name === 'native') {
-    setSimulationToolsActive(false);
-    void activateNativeDemo();
+    const teardown = setSimulationToolsActive(false);
+    void teardown
+      .then(() => {
+        if (version !== tabSelectionVersion || currentTab !== 'native') return;
+        return activateNativeDemo();
+      })
+      .catch((error) =>
+        console.error('[WebMCP] 네이티브 탭 전환 실패:', error),
+      );
   } else {
     void setSimulationToolsActive(true);
   }
@@ -805,14 +814,15 @@ renderVerify();
 // 진입 시 탭 결정: ?tab= > #해시 > 기본(개념)
 const params = new URLSearchParams(location.search);
 const autostep = Number(params.get('autostep'));
-const wantsSim =
-  params.get('tab') === 'sim' ||
-  location.hash === '#sim' ||
-  (Number.isFinite(autostep) && autostep > 0);
-const wantsNative = params.get('tab') === 'native' || location.hash === '#native';
+const queryTab = params.get('tab');
+const hashTab = location.hash.slice(1);
+let initialTab = 'concept';
 
-if (wantsNative) selectTab('native', { push: false });
-else if (wantsSim) selectTab('sim', { push: false });
+if (Number.isFinite(autostep) && autostep > 0) initialTab = 'sim';
+else if (TABS.includes(queryTab)) initialTab = queryTab;
+else if (TABS.includes(hashTab)) initialTab = hashTab;
+
+if (initialTab !== 'concept') selectTab(initialTab, { push: false });
 
 // ?autostep=N — 로드 직후 N 단계를 자동 진행한다.
 // 시연용이자, 헤드리스 스크린샷으로 스테퍼를 검증하는 수단이다.

@@ -720,6 +720,7 @@ form label { display: block; margin-bottom: 12px; }
   --travel-card: #fffdf8;
   --travel-green: #147562;
   --travel-coral: #e06e4f;
+
   color: var(--travel-ink);
   background-color: var(--travel-paper);
   background-image:
@@ -770,7 +771,7 @@ form label { display: block; margin-bottom: 12px; }
 .travel-hero h2 {
   margin: 0;
   color: #fffdf7;
-  font: 700 clamp(34px, 5vw, 62px)/1.08 "Batang", "Nanum Myeongjo", serif;
+  font: 700 clamp(34px, 5vw, 62px)/1.08 Batang, "Nanum Myeongjo", serif;
   letter-spacing: -.055em;
 }
 .travel-dates { margin: 12px 0 24px; color: rgba(255, 255, 255, .7); font-size: 14px; }
