@@ -129,19 +129,34 @@ $('#close-detail').addEventListener('click', () => {
   syncContextualTools();
 });
 
-// 선언형 폼: 사람이 직접 제출할 때의 동작
+// 선언형 폼.
+// 사람이 눌러도, 에이전트가 도구로 호출해도 같은 submit 핸들러를 지난다.
+// SubmitEvent.agentInvoked 로 둘을 구분하고, 에이전트에게 돌려줄 결과는
+// respondWith() 로 넘긴다 (지원하지 않는 브라우저에서는 그냥 무시된다).
 $('#ticket-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  addTicket(fd.get('orderId'), fd.get('body'));
+  const orderId = fd.get('orderId');
+  const body = fd.get('body');
+  const byAgent = e.agentInvoked === true;
+
+  addTicket(orderId, body, byAgent);
   e.target.reset();
+
+  if (byAgent && typeof e.respondWith === 'function') {
+    e.respondWith(
+      Promise.resolve(textResult(`티켓 생성됨: ${orderId} — ${body}`)),
+    );
+  }
 });
 
-function addTicket(orderId, body) {
+function addTicket(orderId, body, byAgent = false) {
   const li = document.createElement('li');
-  li.textContent = `[${new Date().toLocaleTimeString('ko-KR')}] ${orderId} — ${body}`;
+  li.textContent =
+    `[${new Date().toLocaleTimeString('ko-KR')}]` +
+    `${byAgent ? ' 🤖' : ''} ${orderId} — ${body}`;
   $('#tickets').prepend(li);
-  commit(`문의 티켓 생성 (${orderId})`, () => {});
+  commit(`문의 티켓 생성 (${orderId})${byAgent ? ' — 에이전트' : ''}`, () => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -180,8 +195,10 @@ onToolsChanged((tools) => {
   select.innerHTML = tools
     .map((t) => `<option value="${t.name}">${t.name}</option>`)
     .join('');
-  if (tools.some((t) => t.name === prev)) select.value = prev;
+  const kept = tools.some((t) => t.name === prev);
+  if (kept) select.value = prev;
   showToolDesc();
+  if (!kept) fillSampleArgs(); // 선택이 바뀐 경우에만 인자 칸을 다시 채운다
 });
 
 function showToolDesc() {
@@ -197,7 +214,12 @@ function showToolDesc() {
     `<br><span class="think">입력: ${escapeHtml(
       JSON.stringify(tool.inputSchema?.properties ?? {}),
     )}</span>`;
-  // 필수 인자 자리표시자를 인자 칸에 채워 준다
+}
+
+/** 필수 인자 자리표시자를 채운다. 도구를 "바꿨을 때"만 — 입력 중인 값을 지우지 않는다. */
+function fillSampleArgs() {
+  const tool = listTools().find((t) => t.name === select.value);
+  if (!tool) return;
   const props = tool.inputSchema?.properties ?? {};
   const required = tool.inputSchema?.required ?? [];
   const sample = {};
@@ -206,7 +228,10 @@ function showToolDesc() {
   $('#tool-args').value = JSON.stringify(sample, null, 2);
 }
 
-select.addEventListener('change', showToolDesc);
+select.addEventListener('change', () => {
+  showToolDesc();
+  fillSampleArgs();
+});
 
 $('#run-tool').addEventListener('click', async () => {
   let args;
@@ -305,8 +330,8 @@ await registerAllTools();
 await registerTool({
   name: 'create_support_ticket_via_form',
   description:
-    '문의 티켓 폼을 채워 제출한다. 선언형 <form tool="create_support_ticket"> 이 ' +
-    '브라우저 안에서 하는 일과 동일한 결과를 만든다.',
+    '문의 티켓 폼을 채워 제출한다. 선언형 <form toolname="create_support_ticket"> 을 ' +
+    '브라우저가 도구로 합성해 호출할 때와 동일한 경로를 탄다.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -323,6 +348,8 @@ await registerTool({
     return textResult(`티켓 생성됨: ${orderId} — ${body}`);
   },
 });
+
+fillSampleArgs();
 
 log(
   'think',

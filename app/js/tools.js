@@ -212,12 +212,25 @@ const alwaysOn = [
           `사용자가 ${orderId} 환불을 거부했다. 아무것도 변경하지 않았다.`,
         );
 
+      // 이미 할당된 주문이면 예약 재고를 반드시 반납한다.
+      // 안 하면 reserved 가 영구히 새고, 재할당 시 이중 예약이 된다.
+      const wasReserved = STATUS_FLOW.indexOf(order.status) >= 1;
+
       commit(`${orderId} 환불 (${reason})`, () => {
+        if (wasReserved) {
+          for (const i of order.items) {
+            const item = findItem(i.sku);
+            item.reserved = Math.max(0, item.reserved - i.qty);
+          }
+        }
         order.refunded = true;
         order.status = 'pending';
         order.note = `환불: ${reason}`;
       });
-      return textResult(`${orderId} 환불 완료.`);
+      return textResult(
+        `${orderId} 환불 완료.` +
+          (wasReserved ? ' 예약 재고를 반납했다.' : ''),
+      );
     },
   },
 ];

@@ -83,17 +83,37 @@ controller.abort(); // 등록 해제
 이미 폼이 있는 사이트라면 JS를 한 줄도 안 쓰고 도구를 만들 수 있다.
 
 ```html
-<form tool="create_support_ticket"
-      toolDescription="고객 문의 티켓을 생성한다.">
-  <input name="orderId" title="대상 주문 ID (예: ORD-1002)" required />
-  <textarea name="body" title="문의 내용" required></textarea>
+<form toolname="create_support_ticket"
+      tooldescription="고객 문의 티켓을 생성한다."
+      toolautosubmit>
+  <input name="orderId"
+         toolparamdescription="대상 주문 ID (예: ORD-1002)" required />
+  <textarea name="body"
+            toolparamdescription="문의 내용 본문" required></textarea>
   <button type="submit">티켓 생성</button>
 </form>
 ```
 
-브라우저가 `name`/`type`/`required`/`title`을 읽어 입력 스키마를 **합성**하고,
-에이전트가 호출하면 필드를 채워 폼을 제출한다. 검증·제출 로직이 이미 폼에 있다면
-공짜로 얻는 셈이다.
+- `toolname` / `tooldescription` — 폼 자체를 도구로 만든다
+- `toolparamdescription` — 각 컨트롤의 인자 설명
+- `toolautosubmit` — 에이전트가 채운 뒤 자동 제출할지 (없으면 사람이 눌러야 한다)
+
+브라우저가 `name`/`type`/`required`/`toolparamdescription`을 읽어 입력 스키마를
+**합성**한다. 검증·제출 로직이 이미 폼에 있다면 공짜로 얻는 셈이다.
+
+에이전트 호출과 사람 클릭은 같은 `submit` 핸들러를 지나므로, `SubmitEvent`에 추가된
+두 멤버로 구분하고 응답한다:
+
+```js
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const result = createTicket(new FormData(e.target));
+  if (e.agentInvoked) {
+    // 에이전트에게 돌려줄 결과 (Promise 가능)
+    e.respondWith(Promise.resolve({ content: [{ type: 'text', text: result }] }));
+  }
+});
+```
 
 ### 상태 공유
 
@@ -108,7 +128,7 @@ controller.abort(); // 등록 해제
 | 항목 | 내용 |
 |---|---|
 | Chrome 버전 | 149+ (오리진 트라이얼), 로컬은 `chrome://flags/#enable-webmcp-testing` |
-| DevTools 패널 | `chrome://flags/#devtools-webmcp-support` (선택, 검사용) |
+| DevTools 패널 | `chrome://flags/#devtools-webmcp-support` — API 동작엔 불필요하지만 검증에는 사실상 필수 (§4 참고) |
 | 보안 컨텍스트 | HTTPS 또는 `localhost` |
 | 오리진 격리 | `Origin-Agent-Cluster: ?0` 헤더가 있으면 API 비활성 |
 | 교차 오리진 iframe | `<iframe allow="tools">` 필요. 없으면 `NotAllowedError` |
@@ -178,6 +198,35 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 여기서 봐야 할 것은 3번이다. 도구가 예외를 던지는 대신 *"필요 3, 가용 0. restock_item으로
 입고한 뒤 다시 시도하라"* 는 문장을 돌려주기 때문에 에이전트가 스스로 복구할 수 있다.
 **도구의 에러 메시지는 사람이 아니라 에이전트를 위한 다음 지시문이다.**
+
+### 시뮬레이터가 증명하는 것 / 못 하는 것
+
+솔직하게 짚고 넘어갈 것: 시뮬레이터는 **미러에 보관한 서술자의 `execute`를 직접 부른다.**
+따라서 네이티브 모드에서 시뮬레이터가 잘 돈다고 해서 *브라우저가* 도구를 인식했다는
+증거는 되지 않는다. 배지가 🟢여도 브라우저가 등록을 무시했을 가능성은 남는다.
+
+| 확인 대상 | 시뮬레이터 | DevTools WebMCP 패널 |
+|---|---|---|
+| `execute` 로직이 맞는가 | ✅ | — |
+| `registerTool`이 예외 없이 통과했는가 | ✅ | — |
+| **브라우저가 도구를 열거하는가** | ❌ | ✅ |
+| **선언형 폼이 도구로 합성됐는가** | ❌ | ✅ |
+| 브라우저 경로로 실제 호출되는가 | ❌ | ✅ |
+
+즉 `chrome://flags/#devtools-webmcp-support`는 API 동작에는 필요 없지만,
+**엔드투엔드 검증에는 사실상 필수**다. 켜고 DevTools의 WebMCP 패널에서
+9개 도구 + `create_support_ticket`(선언형)이 보이는지 확인하라.
+
+콘솔에서 빠르게 확인하려면:
+
+```js
+JSON.stringify({
+  onDoc: 'modelContext' in document,
+  onNav: 'modelContext' in navigator,
+  keys: Object.getOwnPropertyNames(
+    Object.getPrototypeOf(document.modelContext ?? navigator.modelContext ?? {})),
+})
+```
 
 ### 승인 게이트
 

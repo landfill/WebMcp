@@ -56,21 +56,31 @@
         <h2>선언형 API 데모 — 문의 티켓</h2>
         <p class="hint">
           아래 폼은 JS 등록 없이 마크업만으로 도구가 된다. 브라우저가
-          <code>&lt;form tool&gt;</code> 과 각 필드의 <code>name</code>,
-          <code>title</code> 을 읽어 입력 스키마를 합성한다.
+          <code>toolname</code> / <code>tooldescription</code> 과 각 필드의
+          <code>name</code>, <code>toolparamdescription</code>,
+          <code>required</code> 를 읽어 입력 스키마를 합성한다.
         </p>
         <form
           id="ticket-form"
-          tool="create_support_ticket"
-          toolDescription="고객 문의 티켓을 생성한다."
+          toolname="create_support_ticket"
+          tooldescription="고객 문의 티켓을 생성한다. 주문에 대한 고객 문의를 접수할 때 사용한다."
+          toolautosubmit
         >
           <label>
             주문번호
-            <input name="orderId" title="대상 주문 ID (예: ORD-1002)" required />
+            <input
+              name="orderId"
+              toolparamdescription="대상 주문 ID (예: ORD-1002)"
+              required
+            />
           </label>
           <label>
             내용
-            <textarea name="body" title="문의 내용" required></textarea>
+            <textarea
+              name="body"
+              toolparamdescription="문의 내용 본문"
+              required
+            ></textarea>
           </label>
           <button type="submit">티켓 생성</button>
         </form>
