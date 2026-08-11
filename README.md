@@ -104,6 +104,9 @@ controller.abort(); // 등록 해제
 에이전트 호출과 사람 클릭은 같은 `submit` 핸들러를 지나므로, `SubmitEvent`에 추가된
 두 멤버로 구분하고 응답한다:
 
+> 인터넷의 예제 중 `tool-name` / `tool-description` / `autosubmit` 처럼 하이픈을 넣은
+> 것이 많은데 **틀렸다.** 사양의 속성명에는 하이픈이 없다.
+
 ```js
 form.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -183,14 +186,28 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 | `add_order_note` | 주문 상세가 열려 있을 때만 존재 |
 | `create_support_ticket_via_form` | 선언형 폼에 대응하는 명령형 버전 |
 
-### "운영 시나리오 실행" 버튼
+### 운영 시나리오 스테퍼
 
-에이전트의 **관찰 → 판단 → 행동** 루프를 스크립트로 재현한다:
+에이전트의 **관찰 → 판단 → 행동** 루프를 한 번에 한 수씩 보여준다. 기본은
+**"다음 단계" 수동 진행**이고, 자동 재생은 선택이다 (로그가 주르륵 흐르면 인과가
+안 보이기 때문이다). 각 단계 카드는 세 부분으로 나뉜다:
+
+```
+① 에이전트의 판단   왜 이 도구를 골랐는가
+② 도구 호출        allocate_stock({"orderId":"ORD-1002"})
+③ 결과             재고 부족으로 할당 실패. TRV-MUG: 필요 3, 가용 0 …
+```
+
+그리고 호출이 끝나면 **왼쪽 표에서 그 도구가 건드린 행에 불이 들어온다.**
+도구 호출이 화면 밖의 추상적 이벤트가 아니라 실제 상태를 바꾸는 조작임을
+눈으로 잇기 위한 장치다.
+
+흐름:
 
 1. `list_orders({status:'pending'})` — 뭐가 밀렸는지 본다
-2. `allocate_stock` — 할당 시도
-3. **실패한다** (TRV-MUG 재고 0)
-4. `check_inventory`로 부족분 파악 → `restock_item`으로 입고
+2. `allocate_stock(ORD-1001)` — 성공
+3. `allocate_stock(ORD-1002)` — **실패한다** (TRV-TEE·TRV-MUG 가용 0) ← 카드가 붉게 승격
+4. `check_inventory` → `restock_item`으로 부족분만 입고
 5. `allocate_stock` 재시도 → 성공
 6. `advance_order_status`로 출고 처리
 7. 환불은 **자동으로 하지 않는다** — 파괴적 작업이므로
@@ -198,6 +215,22 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 여기서 봐야 할 것은 3번이다. 도구가 예외를 던지는 대신 *"필요 3, 가용 0. restock_item으로
 입고한 뒤 다시 시도하라"* 는 문장을 돌려주기 때문에 에이전트가 스스로 복구할 수 있다.
 **도구의 에러 메시지는 사람이 아니라 에이전트를 위한 다음 지시문이다.**
+
+> 구현 주의: `scenario.js`는 단계 배열이 아니라 **async generator**다. 본문은
+> `next()`가 불릴 때마다 그 시점의 실제 `state`를 읽고 다음 수를 정한다. 단계를
+> 미리 계산해 두면 화면은 똑같아 보여도 "예상 못 한 실패에 반응한다"는 이 데모의
+> 핵심이 연출이 되어 버린다.
+
+`?autostep=3` 같은 쿼리 파라미터로 N단계까지 자동 진행한 상태를 바로 띄울 수 있다
+(시연용이자, 헤드리스 스크린샷으로 UI를 검증하는 수단).
+
+### `:tool-form-active`
+
+에이전트가 선언형 폼을 조작하는 동안 브라우저가 폼에 붙여 주는 의사 클래스다
+(제출 버튼에는 `:tool-submit-active`). 이 데모는 그 동안 폼 테두리가 시안색으로
+맥동하게 스타일링했고, shim 모드에서는 동등한 `.tool-form-active` 클래스를 직접
+토글해 같은 UX를 보여준다. CSS는 `:is()`로 묶어 두었으므로 의사 클래스를 모르는
+브라우저에서도 규칙 전체가 무효화되지 않는다.
 
 ### 시뮬레이터가 증명하는 것 / 못 하는 것
 
@@ -215,7 +248,8 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 즉 `chrome://flags/#devtools-webmcp-support`는 API 동작에는 필요 없지만,
 **엔드투엔드 검증에는 사실상 필수**다. 켜고 DevTools의 WebMCP 패널에서
-9개 도구 + `create_support_ticket`(선언형)이 보이는지 확인하라.
+명령형 도구 8개(주문 상세를 열면 `add_order_note`가 붙어 9개) +
+선언형 `create_support_ticket`이 보이는지 확인하라.
 
 콘솔에서 빠르게 확인하려면:
 
@@ -258,14 +292,15 @@ JSON.stringify({
 
 ```
 app/
-  index.html          운영 콘솔 + 시뮬레이터 UI
+  index.html          1부 개념 리더 + 2부 운영 콘솔/시뮬레이터
   styles.css
   js/
     webmcp.js         어댑터: 탐지 · shim · 등록 래퍼 · 미러 · 결과 정규화
-    store.js          운영 도메인 상태 + 승인 게이트
+    store.js          운영 도메인 상태 + 승인 게이트 + 리셋
     tools.js          WebMCP 도구 정의 (여기가 본체)
-    main.js           렌더링 · 시뮬레이터 · 시나리오
+    scenario.js       에이전트 루프 (async generator, 지연 평가)
+    main.js           렌더링 · 스테퍼 드라이버 · 수동 호출
 README.md
 ```
 
-읽는 순서는 `tools.js` → `webmcp.js` → `main.js`를 권한다.
+읽는 순서는 `tools.js` → `scenario.js` → `webmcp.js` → `main.js`를 권한다.

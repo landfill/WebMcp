@@ -2,7 +2,9 @@
 
 const subs = new Set();
 
-export const state = {
+/** 초기 데이터 팩토리 — "처음부터" 버튼이 이걸로 되돌린다. */
+function seed() {
+  return {
   orders: [
     {
       id: 'ORD-1001',
@@ -43,7 +45,9 @@ export const state = {
   inventory: [
     { sku: 'TRV-CAP', name: '트레발리 캡', onHand: 5, reserved: 0 },
     { sku: 'TRV-TEE', name: '트레발리 티셔츠', onHand: 2, reserved: 2 },
-    { sku: 'TRV-MUG', name: '트레발리 머그', onHand: 0, reserved: 1 },
+    // onHand 는 항상 reserved 이상이어야 한다 (ORD-1003 이 1개를 잡고 있다).
+    // 가용 = 0 이므로 ORD-1002 의 3개 요청은 여전히 실패한다.
+    { sku: 'TRV-MUG', name: '트레발리 머그', onHand: 1, reserved: 1 },
   ],
   /** 사람 승인 대기 큐 (human-in-the-loop) */
   approvals: [],
@@ -51,7 +55,17 @@ export const state = {
   audit: [],
   /** 현재 상세 조회 중인 주문 — 도구 생명주기 데모용 */
   selectedOrderId: null,
-};
+  };
+}
+
+export const state = seed();
+
+/** 상태를 초기값으로 되돌린다. 대기 중인 승인은 거부 처리해 Promise 를 정리한다. */
+export function resetState() {
+  for (const a of state.approvals) a.resolve(false);
+  Object.assign(state, seed());
+  commit('상태를 초기값으로 되돌렸다', () => {});
+}
 
 export const STATUS_FLOW = ['pending', 'allocated', 'shipped', 'delivered'];
 

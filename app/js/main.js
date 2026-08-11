@@ -11,9 +11,11 @@ import {
   subscribe,
   commit,
   resolveApproval,
+  resetState,
   findOrder,
 } from './store.js';
 import { registerAllTools, syncContextualTools } from './tools.js';
+import { scenario } from './scenario.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -130,6 +132,9 @@ $('#close-detail').addEventListener('click', () => {
 });
 
 // 선언형 폼.
+// 명령형 대응 도구가 폼을 몰 때 켜지는 플래그 (네이티브에서는 e.agentInvoked 가 대신한다)
+let agentDrivingForm = false;
+
 // 사람이 눌러도, 에이전트가 도구로 호출해도 같은 submit 핸들러를 지난다.
 // SubmitEvent.agentInvoked 로 둘을 구분하고, 에이전트에게 돌려줄 결과는
 // respondWith() 로 넘긴다 (지원하지 않는 브라우저에서는 그냥 무시된다).
@@ -138,7 +143,7 @@ $('#ticket-form').addEventListener('submit', (e) => {
   const fd = new FormData(e.target);
   const orderId = fd.get('orderId');
   const body = fd.get('body');
-  const byAgent = e.agentInvoked === true;
+  const byAgent = e.agentInvoked === true || agentDrivingForm;
 
   addTicket(orderId, body, byAgent);
   e.target.reset();
@@ -258,64 +263,171 @@ async function invoke(name, args) {
 }
 
 // ---------------------------------------------------------------------------
-// 운영 시나리오: 에이전트의 "관찰 → 판단 → 행동" 루프를 스크립트로 재현
+// 운영 시나리오 스테퍼
+//
+// 한 번에 한 수씩. 카드는 세 부분으로 나뉜다:
+//   ① 왜 이 도구를 골랐나  ② 무엇을 호출했나  ③ 무슨 결과가 왔나
+// 그리고 결과가 나오면 왼쪽 표의 "그 도구가 건드린 행"에 불이 들어온다.
 // ---------------------------------------------------------------------------
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-$('#run-scenario').addEventListener('click', async (e) => {
-  e.target.disabled = true;
-  try {
-    await runScenario();
-  } finally {
-    e.target.disabled = false;
+let iterator = null;
+let lastResult = undefined;
+let stepNo = 0;
+let busy = false;
+let autoTimer = null;
+
+const KIND_LABEL = {
+  observe: { text: '관찰', cls: 'k-observe' },
+  act: { text: '행동', cls: 'k-act' },
+  fail: { text: '실패 → 복구 판단', cls: 'k-fail' },
+  recover: { text: '복구', cls: 'k-recover' },
+  done: { text: '완료', cls: 'k-done' },
+};
+
+function setStepCard(html, extraClass = '') {
+  const card = $('#step-card');
+  card.className = `step-card ${extraClass}`;
+  card.innerHTML = html;
+}
+
+/** 왼쪽 표에서 이번 호출이 건드린 행에 불을 켠다. */
+function highlight(focus) {
+  document
+    .querySelectorAll('.grid tr.flash')
+    .forEach((tr) => tr.classList.remove('flash'));
+  if (!focus) return;
+
+  const ids = new Set(focus.orders ?? []);
+  if (focus.status)
+    for (const o of state.orders)
+      if (o.status === focus.status) ids.add(o.id);
+
+  for (const id of ids)
+    $(`#orders tbody tr[data-id="${id}"]`)?.classList.add('flash');
+
+  for (const sku of focus.skus ?? []) {
+    const row = [...document.querySelectorAll('#inventory tbody tr')].find(
+      (tr) => tr.textContent.includes(sku),
+    );
+    row?.classList.add('flash');
   }
-});
+}
 
-async function runScenario() {
-  log('think', '── 시나리오 시작: "밀린 주문 처리해줘" ──');
+async function nextStep() {
+  if (busy) return;
+  busy = true;
+  $('#step-next').disabled = true;
 
-  log('think', '① 먼저 무엇이 밀려 있는지 본다.');
-  await invoke('list_orders', { status: 'pending' });
-  await sleep(600);
+  try {
+    iterator ??= scenario();
+    const { value: step, done } = await iterator.next(lastResult);
 
-  const pending = state.orders.filter((o) => o.status === 'pending');
-  for (const order of pending) {
-    log('think', `② ${order.id} 을 할당 시도한다.`);
-    const res = await invoke('allocate_stock', { orderId: order.id });
-    await sleep(500);
-
-    if (!res.includes('재고 부족')) continue;
-
-    log('think', '③ 실패했다. 부족한 SKU 를 재고에서 확인한다.');
-    for (const item of order.items) {
-      const inv = state.inventory.find((i) => i.sku === item.sku);
-      const avail = inv.onHand - inv.reserved;
-      if (avail >= item.qty) continue;
-
-      const need = item.qty - avail;
-      log('think', `④ ${item.sku} 가 ${need}개 모자라다. 입고한다.`);
-      await invoke('restock_item', { sku: item.sku, qty: need });
-      await sleep(500);
+    if (done || !step) {
+      finishScenario();
+      return;
     }
 
-    log('think', '⑤ 입고했으니 다시 할당한다.');
-    await invoke('allocate_stock', { orderId: order.id });
-    await sleep(500);
-  }
+    stepNo += 1;
+    $('#step-count').textContent = `단계 ${stepNo}`;
+    const meta = KIND_LABEL[step.kind] ?? KIND_LABEL.act;
 
-  log('think', '⑥ 할당된 주문을 출고 처리한다.');
-  for (const order of state.orders.filter((o) => o.status === 'allocated')) {
-    await invoke('advance_order_status', { orderId: order.id });
-    await sleep(400);
-  }
+    // ① 판단 ② 호출 — 결과 자리는 비워 두고 먼저 보여준다
+    setStepCard(
+      `<div class="step-kind ${meta.cls}">${meta.text}</div>
+       <div class="step-block">
+         <div class="step-label">① 에이전트의 판단</div>
+         <p class="step-why">${escapeHtml(step.why)}</p>
+       </div>` +
+        (step.tool
+          ? `<div class="step-block">
+               <div class="step-label">② 도구 호출</div>
+               <div class="step-call"><b>${step.tool}</b>(<span>${escapeHtml(
+                 JSON.stringify(step.args ?? {}),
+               )}</span>)</div>
+             </div>
+             <div class="step-block" id="step-result-block">
+               <div class="step-label">③ 결과</div>
+               <div class="step-pending">실행 중…</div>
+             </div>`
+          : ''),
+      meta.cls,
+    );
 
-  log(
-    'think',
-    '── 시나리오 끝. 환불처럼 되돌릴 수 없는 작업은 자동으로 하지 않는다. ' +
-      '<code>issue_refund</code> 를 직접 호출해 승인 게이트를 확인하라. ──',
+    if (!step.tool) {
+      lastResult = undefined;
+      if (step.kind === 'done') finishScenario(false);
+      return;
+    }
+
+    highlight(step.focus);
+    await sleep(320); // 판단 → 호출의 인과를 눈으로 따라갈 수 있게
+
+    const result = await invoke(step.tool, step.args ?? {});
+    lastResult = result;
+
+    const failed = String(result).includes('재고 부족');
+    // 실패는 이 데모의 핵심 장면이다 — 카드 전체를 실패 색으로 승격시킨다
+    if (failed) {
+      $('#step-card').classList.remove(meta.cls);
+      $('#step-card').classList.add('k-fail');
+      $('#step-card .step-kind').className = 'step-kind k-fail';
+      $('#step-card .step-kind').textContent = '행동 → 실패';
+    }
+    $('#step-result-block').innerHTML =
+      `<div class="step-label">③ 결과</div>` +
+      `<pre class="step-result ${failed ? 'bad' : ''}">${escapeHtml(result)}</pre>` +
+      (failed
+        ? `<p class="step-teach">↑ 예외를 던졌다면 여기서 끝났다.
+             문장으로 돌려줬기 때문에 에이전트가 다음 수를 정할 수 있다.</p>`
+        : '');
+    highlight(step.focus);
+  } finally {
+    busy = false;
+    $('#step-next').disabled = false;
+  }
+}
+
+function finishScenario(clearCard = true) {
+  stopAuto();
+  $('#step-next').disabled = true;
+  $('#step-count').textContent = `완료 · ${stepNo}단계`;
+  if (clearCard) setStepCard('<p class="step-empty">시나리오가 끝났다.</p>');
+}
+
+function resetScenario() {
+  stopAuto();
+  iterator = null;
+  lastResult = undefined;
+  stepNo = 0;
+  busy = false;
+  resetState();
+  highlight(null);
+  $('#step-next').disabled = false;
+  $('#step-count').textContent = '준비됨';
+  setStepCard(
+    `<p class="step-empty"><b>다음 단계</b>를 눌러 에이전트의 한 수를 진행하세요.</p>`,
+    'empty',
   );
 }
+
+function stopAuto() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+  $('#step-auto').textContent = '자동 재생';
+  $('#step-auto').classList.remove('on');
+}
+
+$('#step-next').addEventListener('click', nextStep);
+$('#step-reset').addEventListener('click', resetScenario);
+$('#step-auto').addEventListener('click', () => {
+  if (autoTimer) return stopAuto();
+  $('#step-auto').textContent = '■ 정지';
+  $('#step-auto').classList.add('on');
+  autoTimer = setInterval(nextStep, 2600);
+  nextStep();
+});
 
 // ---------------------------------------------------------------------------
 // 부팅
@@ -340,16 +452,35 @@ await registerTool({
     },
     required: ['orderId', 'body'],
   },
-  execute({ orderId, body }) {
+  async execute({ orderId, body }) {
     const form = $('#ticket-form');
-    form.orderId.value = orderId;
-    form.body.value = body;
-    form.requestSubmit();
+
+    // 네이티브라면 브라우저가 :tool-form-active 를 알아서 붙인다.
+    // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
+    agentDrivingForm = true;
+    form.classList.add('tool-form-active');
+    try {
+      form.orderId.value = orderId;
+      await sleep(500);
+      form.body.value = body;
+      await sleep(400);
+      form.requestSubmit();
+    } finally {
+      form.classList.remove('tool-form-active');
+      agentDrivingForm = false;
+    }
     return textResult(`티켓 생성됨: ${orderId} — ${body}`);
   },
 });
 
 fillSampleArgs();
+
+// ?autostep=N — 로드 직후 N 단계를 자동 진행한다.
+// 시연용이자, 헤드리스 스크린샷으로 스테퍼를 검증하는 수단이다.
+const autostep = Number(new URLSearchParams(location.search).get('autostep'));
+if (Number.isFinite(autostep) && autostep > 0) {
+  for (let i = 0; i < autostep; i++) await nextStep();
+}
 
 log(
   'think',
