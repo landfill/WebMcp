@@ -436,13 +436,14 @@ index.html
 
 | 탭 | 사용자가 보는 것 | 도구 등록 경로 |
 |---|---|---|
-| 1 · 개념 | `index.html` 정적 문서 + `data-goto` 딥링크 | 없음 |
-| 2 · 시뮬레이션 | `tools.js` → `webmcp.js` → `main.js` 시뮬레이터 | `registerAllTools()` + 선언형 `<form toolname>` + `create_support_ticket_via_form` |
+| 1 · 개념 | `index.html` 정적 문서 + `data-goto` 딥링크 | 시뮬 도구는 **백그라운드 등록** (`setSimulationToolsActive(true)` — 부팅 시·이 탭에서도 유지) |
+| 2 · 시뮬레이션 | `tools.js` → `webmcp.js` → `main.js` 시뮬레이터 | 탭 1과 동일한 시뮬 도구 + UI에서 수동 호출·스테퍼 |
 | 3 · AI 여행 준비 | `native-demo.js` → Chrome 에이전트 | `list_trip_tasks` / `add_trip_task` / `complete_trip_task` (탭 진입 시만) |
 
-탭 2와 3은 **동시에 도구를 등록하지 않는다.** `main.js`의 `selectTab()`이
-`setSimulationToolsActive()` / `activateNativeDemo()` / `deactivateNativeDemo()`로
-전환한다.
+탭 1·2와 3은 **동시에 도구를 등록하지 않는다.** `main.js`의 `selectTab()`이
+`native`가 아닐 때 `setSimulationToolsActive(true)`, `native`일 때 시뮬 도구를 해제하고
+`activateNativeDemo()` / `deactivateNativeDemo()`로 전환한다. 개념 탭은 시뮬 UI가
+숨겨져 있을 뿐, 페이지 로드 직후부터 시뮬레이션 도구가 등록된 상태다.
 
 ### 읽는 순서 (권장)
 
