@@ -1,60 +1,99 @@
-/** 운영 도메인 상태 (주문 / 재고). 아주 얇은 pub-sub 스토어. */
+/** 여행 예약 도메인 상태 (예약 / 객실 재고). 아주 얇은 pub-sub 스토어. */
 
 const subs = new Set();
+
+/**
+ * 객실 부족 실패를 알리는 표식.
+ *
+ * 이 문구는 세 곳에서 맞물린다: 도구가 돌려주는 실패 텍스트,
+ * 시나리오 제너레이터의 복구 분기, 스테퍼의 실패 카드 승격.
+ * 문자열을 각자 적어 두면 하나만 어긋나도 조용히 어긋난다 —
+ * 예외도 안 나고 화면도 돌지만 이 데모의 핵심 장면만 사라진다.
+ */
+export const SHORTAGE_MARK = '잔여 객실 부족';
 
 /** 초기 데이터 팩토리 — "처음부터" 버튼이 이걸로 되돌린다. */
 function seed() {
   return {
-  orders: [
+  bookings: [
     {
-      id: 'ORD-1001',
-      customer: '김민수',
-      status: 'pending',
-      items: [{ sku: 'TRV-CAP', qty: 2 }],
+      id: 'BKG-2001',
+      guest: '김민수',
+      status: 'requested',
+      checkIn: '04-12',
+      nights: 2,
+      rooms: [{ code: 'JEJU-OCEAN', qty: 2 }],
       note: '',
-      refunded: false,
+      cancelled: false,
     },
     {
-      id: 'ORD-1002',
-      customer: '이서연',
-      status: 'pending',
-      items: [
-        { sku: 'TRV-TEE', qty: 1 },
-        { sku: 'TRV-MUG', qty: 3 },
+      id: 'BKG-2002',
+      guest: '이서연',
+      status: 'requested',
+      checkIn: '04-14',
+      nights: 3,
+      rooms: [
+        { code: 'BUSAN-CITY', qty: 1 },
+        { code: 'SEOUL-SUITE', qty: 3 },
       ],
       note: '',
-      refunded: false,
+      cancelled: false,
     },
     {
-      id: 'ORD-1003',
-      customer: '박도윤',
-      status: 'allocated',
-      items: [{ sku: 'TRV-MUG', qty: 1 }],
+      id: 'BKG-2003',
+      guest: '박도윤',
+      status: 'confirmed',
+      checkIn: '04-15',
+      nights: 1,
+      rooms: [{ code: 'SEOUL-SUITE', qty: 1 }],
       note: '',
-      refunded: false,
+      cancelled: false,
     },
     {
-      id: 'ORD-1004',
-      customer: '최하은',
-      status: 'shipped',
-      items: [{ sku: 'TRV-TEE', qty: 2 }],
+      id: 'BKG-2004',
+      guest: '최하은',
+      status: 'ticketed',
+      // 04-15~04-18. BKG-2002(04-14~04-17)와 겹쳐야 한다 —
+      // 재고를 객실 타입별 단순 카운트로 두었으므로, 투숙 기간이 겹치지 않는
+      // 예약이 서로 객실을 잠그면 화면이 데이터와 모순돼 보인다.
+      checkIn: '04-15',
+      nights: 3,
+      rooms: [{ code: 'BUSAN-CITY', qty: 2 }],
       note: '',
-      refunded: false,
+      cancelled: false,
     },
   ],
-  inventory: [
-    { sku: 'TRV-CAP', name: '트레발리 캡', onHand: 5, reserved: 0 },
-    { sku: 'TRV-TEE', name: '트레발리 티셔츠', onHand: 2, reserved: 2 },
-    // onHand 는 항상 reserved 이상이어야 한다 (ORD-1003 이 1개를 잡고 있다).
-    // 가용 = 0 이므로 ORD-1002 의 3개 요청은 여전히 실패한다.
-    { sku: 'TRV-MUG', name: '트레발리 머그', onHand: 1, reserved: 1 },
+  rooms: [
+    {
+      code: 'JEJU-OCEAN',
+      name: '제주 오션뷰 디럭스',
+      hotel: '제주 블루하버',
+      total: 5,
+      assigned: 0,
+    },
+    {
+      code: 'BUSAN-CITY',
+      name: '부산 시티뷰 트윈',
+      hotel: '부산 해운대 스테이',
+      total: 2,
+      assigned: 2,
+    },
+    // total 은 항상 assigned 이상이어야 한다 (BKG-2003 이 1실을 잡고 있다).
+    // 잔여 = 0 이므로 BKG-2002 의 3실 요청은 여전히 실패한다.
+    {
+      code: 'SEOUL-SUITE',
+      name: '서울 시티 스위트',
+      hotel: '서울 남산 호텔',
+      total: 1,
+      assigned: 1,
+    },
   ],
   /** 사람 승인 대기 큐 (human-in-the-loop) */
   approvals: [],
   /** 감사 로그 */
   audit: [],
-  /** 현재 상세 조회 중인 주문 — 도구 생명주기 데모용 */
-  selectedOrderId: null,
+  /** 현재 상세 조회 중인 예약 — 도구 생명주기 데모용 */
+  selectedBookingId: null,
   };
 }
 
@@ -67,7 +106,20 @@ export function resetState() {
   commit('상태를 초기값으로 되돌렸다', () => {});
 }
 
-export const STATUS_FLOW = ['pending', 'allocated', 'shipped', 'delivered'];
+export const STATUS_FLOW = [
+  'requested',
+  'confirmed',
+  'ticketed',
+  'completed',
+];
+
+/** 상태 코드의 한국어 설명 — 화면과 도구 설명에서 함께 쓴다. */
+export const STATUS_LABEL = {
+  requested: '요청 접수',
+  confirmed: '객실 확정',
+  ticketed: '바우처 발급',
+  completed: '투숙 완료',
+};
 
 export function subscribe(fn) {
   subs.add(fn);
@@ -85,17 +137,17 @@ export function commit(reason, mutator) {
   for (const fn of subs) fn(state);
 }
 
-export function findOrder(id) {
-  return state.orders.find((o) => o.id === id) ?? null;
+export function findBooking(id) {
+  return state.bookings.find((b) => b.id === id) ?? null;
 }
 
-export function findItem(sku) {
-  return state.inventory.find((i) => i.sku === sku) ?? null;
+export function findRoom(code) {
+  return state.rooms.find((r) => r.code === code) ?? null;
 }
 
-export function available(sku) {
-  const item = findItem(sku);
-  return item ? item.onHand - item.reserved : 0;
+export function available(code) {
+  const room = findRoom(code);
+  return room ? room.total - room.assigned : 0;
 }
 
 // ---------------------------------------------------------------------------
