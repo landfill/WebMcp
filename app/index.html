@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trevally 운영 콘솔 — WebMCP 시뮬레이션</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Trevally 운영 콘솔</h1>
+      <div id="runtime-badge" class="badge">런타임 확인 중…</div>
+    </header>
+
+    <main class="layout">
+      <!-- 왼쪽: 사람이 쓰는 진짜 운영 화면 -->
+      <section class="panel">
+        <h2>주문</h2>
+        <table id="orders" class="grid">
+          <thead>
+            <tr>
+              <th>주문</th>
+              <th>고객</th>
+              <th>품목</th>
+              <th>상태</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div id="order-detail" class="detail" hidden>
+          <h3>주문 상세 <span id="detail-id"></span></h3>
+          <p class="hint">
+            이 화면이 열려 있는 동안에만 <code>add_order_note</code> 도구가
+            등록된다. 닫으면 <code>AbortController.abort()</code> 로 해제된다.
+          </p>
+          <p id="detail-note" class="note"></p>
+          <button id="close-detail" class="ghost">닫기</button>
+        </div>
+
+        <h2>재고</h2>
+        <table id="inventory" class="grid">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>이름</th>
+              <th>실물</th>
+              <th>예약</th>
+              <th>가용</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <h2>선언형 API 데모 — 문의 티켓</h2>
+        <p class="hint">
+          아래 폼은 JS 등록 없이 마크업만으로 도구가 된다. 브라우저가
+          <code>&lt;form tool&gt;</code> 과 각 필드의 <code>name</code>,
+          <code>title</code> 을 읽어 입력 스키마를 합성한다.
+        </p>
+        <form
+          id="ticket-form"
+          tool="create_support_ticket"
+          toolDescription="고객 문의 티켓을 생성한다."
+        >
+          <label>
+            주문번호
+            <input name="orderId" title="대상 주문 ID (예: ORD-1002)" required />
+          </label>
+          <label>
+            내용
+            <textarea name="body" title="문의 내용" required></textarea>
+          </label>
+          <button type="submit">티켓 생성</button>
+        </form>
+        <ul id="tickets" class="log"></ul>
+      </section>
+
+      <!-- 오른쪽: 에이전트 측 시뮬레이터 -->
+      <section class="panel agent">
+        <h2>에이전트 시뮬레이터</h2>
+        <p class="hint">
+          실제 에이전트가 하는 일 — 도구 목록을 읽고, 인자를 만들어 호출하고,
+          결과를 보고 다음 수를 정하는 것 — 을 페이지 안에서 그대로 흉내낸다.
+          호출되는 <code>execute()</code> 는 에이전트가 부르는 것과 동일한 함수다.
+        </p>
+
+        <div id="approvals" class="approvals"></div>
+
+        <label class="field">
+          도구
+          <select id="tool-select"></select>
+        </label>
+        <div id="tool-desc" class="tool-desc"></div>
+        <label class="field">
+          인자 (JSON)
+          <textarea id="tool-args" rows="4">{}</textarea>
+        </label>
+        <div class="row">
+          <button id="run-tool">호출</button>
+          <button id="run-scenario" class="secondary">운영 시나리오 실행</button>
+          <button id="clear-log" class="ghost">로그 지우기</button>
+        </div>
+
+        <h3>대화 로그</h3>
+        <div id="agent-log" class="agent-log"></div>
+
+        <h3>감사 로그</h3>
+        <ul id="audit" class="log"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>

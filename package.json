@@ -1,0 +1,11 @@
+{
+  "name": "trevally-webmcp-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebMCP 개념 학습 + 운영 시뮬레이션 데모",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve app -l 4173",
+    "dev": "npx --yes serve app -l 4173"
+  }
+}
