@@ -51,7 +51,7 @@ await document.modelContext.registerTool({
     properties: { bookingId: { type: 'string' } },
     required: ['bookingId'],
   },
-  annotations: { readOnlyHint: false, destructiveHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: false },
   async execute({ bookingId }) {
     // ... 실제 앱 로직 — UI 버튼이 부르는 그 함수를 그대로 부른다
     return { content: [{ type: 'text', text: `${bookingId} 배정 완료` }] };
@@ -64,19 +64,21 @@ controller.abort(); // 등록 해제
 핵심 조각:
 
 - **`name`** — 에이전트가 부르는 식별자. 동사_명사 형태로.
-- **`description`** — 이게 사실상 프롬프트다. *언제* 이 도구를 쓰는지, 실패하면
-  어떻게 되는지까지 적어야 에이전트가 제대로 판단한다.
+- **`description`** — 에이전트가 도구 선택에 사용하는 설명. 도구의 기능, 사용 시점,
+  실행할 수 없는 조건을 짧고 구체적으로 적는다.
 - **`inputSchema`** — JSON Schema. 에이전트가 인자를 지어내지 않게 하는 계약.
-- **`annotations`** — `readOnlyHint`(부작용 없음), `destructiveHint`(되돌릴 수 없음),
-  `idempotentHint`. 에이전트가 "이건 막 불러도 되는가"를 판단하는 근거.
+- **`annotations`** — `readOnlyHint`는 상태를 바꾸지 않는 조회 도구,
+  `untrustedContentHint`는 외부 데이터나 사용자 작성 콘텐츠를 반환하는 도구임을
+  나타낸다. 현재 초안에는 `destructiveHint`와 `idempotentHint`가 없다.
 - **`execute`** — 동기/비동기 모두 가능. 반환은 `{content:[{type:'text',text}]}` 형태가
   표준이고, 구현에 따라 평범한 값도 받는다.
 - **`{ signal }`** — 등록 해제는 `unregisterTool()`이 아니라 **AbortController**로 한다.
   화면이 바뀌면 도구도 같이 사라지는 게 자연스럽다.
 
-> ⚠️ 네임스페이스는 사양 진행 중 바뀌었다. 문서마다 `document.modelContext` /
-> `navigator.modelContext`가 섞여 있으니 **양쪽 다 확인하는 feature detection**을 써라.
-> 이 저장소의 `app/js/webmcp.js`가 그렇게 되어 있다.
+> **현재 네임스페이스:** 현재 사양과 Chrome 문서는 `document.modelContext`를 사용한다.
+> `navigator.modelContext`는 이전 실험 버전의 이름이며 Chrome 150부터 폐기 대상이다.
+> 구버전 실험 환경도 지원해야 할 때만 `document.modelContext ?? navigator.modelContext`
+> 순서로 확인한다. 이 저장소의 `app/js/webmcp.js`가 이 호환 처리를 담당한다.
 
 ### 선언형 (Declarative) — HTML만으로
 
@@ -94,18 +96,22 @@ controller.abort(); // 등록 해제
 </form>
 ```
 
-- `toolname` / `tooldescription` — 폼 자체를 도구로 만든다
-- `toolparamdescription` — 각 컨트롤의 인자 설명
-- `toolautosubmit` — 에이전트가 채운 뒤 자동 제출할지 (없으면 사람이 눌러야 한다)
+- `toolname` — 에이전트가 호출할 도구의 고유 이름
+- `tooldescription` — 도구의 기능과 사용 시점을 설명하는 문장
+- `toolparamdescription` — 각 컨트롤이 만드는 인자의 의미와 허용 형식
+- `toolautosubmit` — 에이전트가 채운 뒤 자동 제출할지 결정하는 불리언 속성. 생략하면
+  브라우저가 제출 버튼에 초점을 옮기고 사람의 확인을 기다린다.
+- 표준 HTML의 `name` / `type` / `required` — 인자명·입력 타입·필수 여부를 결정한다.
 
 브라우저가 `name`/`type`/`required`/`toolparamdescription`을 읽어 입력 스키마를
 **합성**한다. 검증·제출 로직이 이미 폼에 있다면 공짜로 얻는 셈이다.
 
-에이전트 호출과 사람 클릭은 같은 `submit` 핸들러를 지나므로, `SubmitEvent`에 추가된
-두 멤버로 구분하고 응답한다:
+에이전트 호출과 사람 클릭은 같은 `submit` 핸들러를 지난다. `e.agentInvoked`가
+`true`이면 에이전트가 제출한 경우이며, 이때 `e.respondWith()`로 처리 결과를
+에이전트에게 반환한다.
 
-> 인터넷의 예제 중 `tool-name` / `tool-description` / `autosubmit` 처럼 하이픈을 넣은
-> 것이 많은데 **틀렸다.** 사양의 속성명에는 하이픈이 없다.
+> 현재 선언형 API 초안의 속성명은 하이픈 없이 `toolname`, `tooldescription`,
+> `toolautosubmit`으로 쓴다. 초기 제안에 기반한 자료에는 다른 표기가 남아 있을 수 있다.
 
 ```js
 form.addEventListener('submit', (e) => {
@@ -120,9 +126,9 @@ form.addEventListener('submit', (e) => {
 
 ### 상태 공유
 
-도구 목록 자체가 상태를 표현한다. 로그인 전에는 `login` 도구만, 로그인 후에는
-`list_bookings`가 나타나는 식. 이 데모에서는 **예약 상세 화면을 열었을 때만
-`add_booking_note` 도구가 등록**되도록 해서 이 패턴을 보여준다.
+화면을 열 때 `AbortSignal`과 함께 도구를 등록하고 닫을 때 `abort()`를 호출하면 도구
+목록이 현재 화면 상태와 일치한다. 이 시뮬레이션에서는 **예약 상세 화면을 열었을 때만
+`add_booking_note` 도구가 등록**되고, 상세 화면을 닫으면 해제된다.
 
 ---
 
@@ -138,7 +144,7 @@ form.addEventListener('submit', (e) => {
 | 헤드리스 | **불가.** 탭 또는 웹뷰가 실제로 열려 있어야 한다 |
 | 발견 가능성 | 에이전트가 사이트를 **직접 방문해야** 도구가 있는지 안다. 중앙 레지스트리 없음 |
 
-마지막 두 개가 실무에서 제일 중요하다. WebMCP는 백엔드 API의 대체재가 아니라
+**주의사항:** WebMCP는 백엔드 API의 대체재가 아니라
 **"사용자가 이미 열어 둔 탭에서, 사용자의 세션으로, 사용자가 볼 수 있게"** 작업을
 수행하는 수단이다.
 
@@ -194,8 +200,9 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 **1 · 개념** — 이 README의 앞부분을 읽는 형태로 옮긴 문서. 각 절 끝에 시뮬레이션의
 해당 부분으로 바로 가는 딥링크가 붙어 있다 (`data-goto`).
 
-**2 · 시뮬레이션** — 왼쪽은 사람이 쓰는 운영 화면(예약/객실 재고/문의 폼), 오른쪽은
-에이전트 쪽(시나리오 스테퍼, 수동 호출, 로그). 시뮬레이션의 각 블록에는 개념
+**2 · 시뮬레이션** — 고객이 호텔을 검색·예약하는 화면이 아니라 여행사 운영자가
+접수된 예약, 객실 재고, 문의를 처리하는 관리 콘솔이다. 왼쪽은 운영 화면, 오른쪽은
+에이전트 쪽(시나리오 스테퍼, 수동 호출, 로그)이다. 시뮬레이션의 각 블록에는 개념
 탭의 해당 절로 돌아가는 역방향 링크가 있다.
 
 두 탭은 **같은 컴포넌트와 같은 타입 스케일**을 쓴다 (`.card`, `.code`, `.chip`,
@@ -243,7 +250,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 ```
 ① 에이전트의 판단   왜 이 도구를 골랐는가
 ② 도구 호출        assign_rooms({"bookingId":"BKG-2002"})
-③ 결과             잔여 객실 부족으로 배정 실패. SEOUL-SUITE: 필요 3실, 잔여 0실 …
+③ 결과             잔여 객실 부족으로 배정 실패. BUSAN-CITY: 필요 1실, 잔여 0실
 ```
 
 그리고 호출이 끝나면 **왼쪽 표에서 그 도구가 건드린 행에 불이 들어온다.**
@@ -252,17 +259,19 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 흐름:
 
-1. `list_bookings({status:'requested'})` — 뭐가 밀렸는지 본다
-2. `assign_rooms(BKG-2001)` — 성공
-3. `assign_rooms(BKG-2002)` — **실패한다** (BUSAN-CITY·SEOUL-SUITE 잔여 0) ← 카드가 붉게 승격
-4. `check_availability` → `open_room_block`으로 부족분만 추가 확보
-5. `assign_rooms` 재시도 → 성공
-6. `advance_booking_status`로 바우처 발급
-7. 취소·환불은 **자동으로 하지 않는다** — 파괴적 작업이므로
+1. `list_bookings({status:'requested'})` — 요청 접수 상태인 예약 2건을 조회한다
+2. `assign_rooms(BKG-2001)` — 제주 2실은 재고가 충분하므로 성공한다
+3. `assign_rooms(BKG-2002)` — 부산 1실이 부족해 실패한다
+4. `check_availability({roomCode:'BUSAN-CITY'})` — 다른 도시를 제외하고 부산 재고만 확인한다
+5. `open_room_block({roomCode:'BUSAN-CITY', qty:1})` — 호텔에 부산 판매 블록 1실만 추가 요청한다
+6. `assign_rooms(BKG-2002)` 재시도 → 성공
+7. 요청 범위인 객실 확정까지만 처리하고 종료한다
 
-여기서 봐야 할 것은 3번이다. 도구가 예외를 던지는 대신 *"필요 3실, 잔여 0실. open_room_block으로
-객실을 추가 확보한 뒤 다시 시도하라"* 는 문장을 돌려주기 때문에 에이전트가 스스로 복구할 수 있다.
-**도구의 에러 메시지는 사람이 아니라 에이전트를 위한 다음 지시문이다.**
+제주와 부산은 서로 다른 예약이다. 제주 예약은 기존 재고로 배정하며 객실 블록을
+추가하지 않는다. 부산은 같은 투숙 기간의 `BKG-2004`가 기존 2실을 사용하고 있어
+잔여가 없다. 부산 예약이 실패했을 때만 *"필요 1실, 잔여 0실.
+open_room_block으로 객실을 추가 확보한 뒤 다시 시도하라"*는 결과를 받고,
+동일한 `BUSAN-CITY` 블록을 1실 확보한다.
 
 > 구현 주의: `scenario.js`는 단계 배열이 아니라 **async generator**다. 본문은
 > `next()`가 불릴 때마다 그 시점의 실제 `state`를 읽고 다음 수를 정한다. 단계를
@@ -326,18 +335,18 @@ JSON.stringify({
 
 ## 5. 도구를 설계할 때의 원칙
 
-1. **도구 하나 = 사용자가 UI에서 하는 의미 있는 작업 하나.** DB CRUD를 그대로
-   노출하지 마라. `update_row`가 아니라 `assign_rooms`다.
-2. **description은 프롬프트다.** 무엇을 하는지만이 아니라 *언제 쓰는지*, 실패하면
-   무엇을 해야 하는지를 적어라.
-3. **실패는 예외가 아니라 설명이다.** throw 하면 에이전트는 막힌다. 문장으로 돌려주면
-   복구한다.
-4. **annotations를 채워라.** `readOnlyHint`가 붙은 도구는 에이전트가 자유롭게 탐색할 수
-   있다. `destructiveHint`는 멈추게 만든다.
-5. **위험한 작업은 사람 승인을 통과시켜라.** 페이지가 열려 있다는 게 WebMCP의 제약이자
-   장점이다 — 사람이 화면 앞에 있다.
-6. **도구 생명주기를 화면 상태에 묶어라.** AbortController로 붙였다 떼면, 에이전트에게
-   보이는 도구 목록이 곧 "지금 가능한 일"이 된다.
+1. **도구 설계 단위는 사용자가 UI에서 완료하는 작업 하나다.** DB CRUD를 그대로
+   노출한 `update_row`보다 업무 결과를 나타내는 `assign_rooms`가 적합하다.
+2. **description에는 기능과 사용 조건을 적는다.** 실행할 수 없는 조건도 짧고 명확하게
+   설명한다.
+3. **업무 실패 결과에는 원인과 후속 조치를 포함한다.** 에이전트가 다음 도구를 선택할 수
+   있는 정보를 반환한다.
+4. **현재 지원되는 annotations를 정확히 사용한다.** 조회 도구에는 `readOnlyHint`,
+   외부·사용자 콘텐츠를 반환하는 도구에는 `untrustedContentHint`를 지정한다.
+5. **위험한 작업은 실행 함수 안에서 사람 승인을 통과시킨다.** 현재 초안에는 파괴적
+   작업 전용 annotation이 없으므로 사이트가 승인 UI와 대기 Promise를 구현한다.
+6. **화면 상태에 따라 도구를 등록하고 해제한다.** AbortController로 붙였다 떼면,
+   에이전트에게 보이는 도구 목록이 곧 현재 가능한 일이 된다.
 
 ---
 

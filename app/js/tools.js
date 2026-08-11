@@ -3,8 +3,9 @@
  *
  * 설계 원칙:
  *  - 읽기 전용 도구는 annotations.readOnlyHint: true
- *  - 파괴적 도구는 destructiveHint + 사람 승인 게이트
- *  - 도구 하나 = 사용자가 UI에서 할 수 있는 의미 있는 작업 하나
+ *  - 외부/사용자 콘텐츠를 반환하면 untrustedContentHint: true
+ *  - 되돌리기 어려운 작업은 execute 내부의 사람 승인 게이트로 보호
+ *  - 사용자가 UI에서 완료하는 단위 작업 하나를 도구 하나로 설계
  *  - 실패는 예외가 아니라 "무엇이 왜 안 됐는지"를 담은 텍스트로 반환한다
  */
 
@@ -157,12 +158,17 @@ const alwaysOn = [
   {
     name: 'open_room_block',
     description:
-      '호텔에서 객실을 추가로 확보해 판매 가능한 총 객실 수(total)를 늘린다. 잔여가 모자라 배정이 막혔을 때 사용한다.',
+      '호텔에서 지정한 roomCode의 판매 블록을 추가 확보해 총 객실 수(total)를 늘린다. ' +
+      '잔여가 모자라 배정이 막혔을 때 부족한 수량만 요청한다. 다른 도시나 다른 객실 코드로 대체하지 않는다.',
     inputSchema: {
       type: 'object',
       properties: {
         roomCode: { type: 'string' },
-        qty: { type: 'number', description: '추가 확보할 객실 수 (1 이상)' },
+        qty: {
+          type: 'number',
+          minimum: 1,
+          description: '추가 확보할 객실 수 (1 이상)',
+        },
       },
       required: ['roomCode', 'qty'],
     },
@@ -223,7 +229,6 @@ const alwaysOn = [
       },
       required: ['bookingId', 'reason'],
     },
-    annotations: { destructiveHint: true, idempotentHint: false },
     async execute({ bookingId, reason }) {
       const booking = findBooking(bookingId);
       if (!booking) return textResult(`예약을 찾을 수 없다: ${bookingId}`);

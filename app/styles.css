@@ -332,6 +332,15 @@ form label { display: block; margin-bottom: 12px; }
 .doc table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); margin: 0 0 18px; }
 .doc th { text-align: left; color: var(--text-3); font-weight: 600; padding: 9px 10px; border-bottom: 1px solid var(--line-2); }
 .doc td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.doc .compact-table th:first-child,
+.doc .compact-table td:first-child { white-space: nowrap; }
+.doc .compact-table thead th { color: var(--text-2); background: var(--surface-2); }
+.doc .checklist {
+  max-width: 82ch; margin: 0 0 20px; padding: 14px 18px 14px 42px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2);
+}
+.doc .checklist li { padding: 4px 0; }
+.code.compact { margin: 12px 0 0; }
 
 /* ===========================================================================
    2부 · 시뮬레이션 탭
@@ -378,6 +387,13 @@ form label { display: block; margin-bottom: 12px; }
 .block-body > p.hint:first-child { margin-top: 0; }
 
 .hint { color: var(--text-3); font-size: 12.5px; line-height: 1.7; margin: 0 0 12px; }
+.route-guide {
+  margin: 0 0 16px; padding: 11px 13px;
+  border: 1px solid #24456e; border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm); background: var(--accent-bg);
+  color: var(--text-2); font-size: 12.5px; line-height: 1.7;
+}
+.route-guide b:first-child { display: block; color: var(--text); margin-bottom: 2px; }
 
 /* 표 */
 .grid { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
@@ -412,6 +428,10 @@ form label { display: block; margin-bottom: 12px; }
 
 .stepper .block-head { background: var(--surface-2); border-radius: var(--r-lg) var(--r-lg) 0 0; }
 .stepper-sub { font-size: 12.5px; color: var(--text-3); margin-top: 2px; }
+.stepper-scope {
+  margin-top: 7px; color: var(--text-2); font-size: 11.5px; line-height: 1.55;
+}
+.stepper-scope code { color: var(--cyan); }
 .stepper-count {
   font-size: var(--t-label); color: var(--text-3); background: var(--bg);
   border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 12px; white-space: nowrap;

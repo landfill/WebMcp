@@ -16,7 +16,7 @@ import { state, SHORTAGE_MARK } from './store.js';
 export async function* scenario() {
   yield {
     kind: 'observe',
-    why: '사용자가 "밀린 예약 확정해줘"라고 했다. 먼저 무엇이 밀려 있는지 본다. 목록을 모르면 아무것도 정할 수 없다.',
+    why: '사용자가 "요청 접수 상태인 예약을 모두 객실 확정해줘"라고 했다. 먼저 처리 대상 예약을 조회한다.',
     tool: 'list_bookings',
     args: { status: 'requested' },
     focus: { status: 'requested' },
@@ -38,9 +38,12 @@ export async function* scenario() {
   }
 
   for (const booking of requested) {
+    const roomSummary = booking.rooms
+      .map((room) => `${room.code} ${room.qty}실`)
+      .join(', ');
     const result = yield {
       kind: 'act',
-      why: `${booking.id} 을 처리한다. 객실을 배정해 보면 가능한지 아닌지 알 수 있다.`,
+      why: `${booking.id} (${booking.guest})의 ${roomSummary} 예약을 처리한다. 이 단계에서는 이 예약에 포함된 객실만 배정한다.`,
       tool: 'assign_rooms',
       args: { bookingId: booking.id },
       focus: {
@@ -51,18 +54,7 @@ export async function* scenario() {
 
     if (!String(result).includes(SHORTAGE_MARK)) continue;
 
-    // ── 실패했다. 여기가 이 시나리오의 핵심 ──
-    yield {
-      kind: 'fail',
-      why:
-        '실패했다. 그런데 도구가 예외를 던진 게 아니라 "무엇이 왜 안 됐는지"를 ' +
-        '문장으로 돌려줬다. 그래서 다음 수를 스스로 정할 수 있다. ' +
-        '먼저 객실 잔여 현황을 정확히 확인한다.',
-      tool: 'check_availability',
-      args: {},
-      focus: { rooms: booking.rooms.map((r) => r.code) },
-    };
-
+    // ── 실패했다. 반환 결과에 포함된 객실 코드만 확인하고 복구한다. ──
     for (const req of booking.rooms) {
       const room = state.rooms.find((r) => r.code === req.code);
       const avail = room.total - room.assigned;
@@ -70,8 +62,20 @@ export async function* scenario() {
 
       const need = req.qty - avail;
       yield {
+        kind: 'fail',
+        why:
+          `${booking.id} (${booking.guest})의 ${req.code} 배정이 실패했다. ` +
+          `다른 도시 재고는 조회하지 않고, 이 예약에 필요한 ${req.code}의 잔여 수량만 확인한다.`,
+        tool: 'check_availability',
+        args: { roomCode: req.code },
+        focus: { rooms: [req.code] },
+      };
+
+      yield {
         kind: 'recover',
-        why: `${req.code} 가 ${need}실 모자란다 (필요 ${req.qty}실, 잔여 ${avail}실). 호텔에서 객실을 추가로 확보한다.`,
+        why:
+          `${booking.id}의 투숙 기간과 겹치는 기존 예약 때문에 ${req.code}가 ${need}실 모자란다 ` +
+          `(필요 ${req.qty}실, 잔여 ${avail}실). 호텔에 같은 객실 코드의 판매 블록 ${need}실만 추가 요청한다.`,
         tool: 'open_room_block',
         args: { roomCode: req.code, qty: need },
         focus: { rooms: [req.code] },
@@ -80,7 +84,7 @@ export async function* scenario() {
 
     yield {
       kind: 'recover',
-      why: '막힌 원인을 없앴으니 같은 작업을 다시 시도한다.',
+      why: `${booking.id}에 부족했던 객실만 확보했으므로 같은 예약의 객실 배정을 다시 시도한다.`,
       tool: 'assign_rooms',
       args: { bookingId: booking.id },
       focus: {
@@ -90,21 +94,11 @@ export async function* scenario() {
     };
   }
 
-  // 확정된 예약에 바우처를 발급한다
-  for (const booking of state.bookings.filter((b) => b.status === 'confirmed')) {
-    yield {
-      kind: 'act',
-      why: `${booking.id} 는 객실이 잡혔다. 다음 단계인 바우처 발급으로 진행시킨다.`,
-      tool: 'advance_booking_status',
-      args: { bookingId: booking.id },
-      focus: { bookings: [booking.id] },
-    };
-  }
-
   yield {
     kind: 'done',
     why:
-      '밀린 예약을 모두 확정했다. 취소·환불처럼 되돌릴 수 없는 작업은 지시받지 않았으므로 하지 않는다. ' +
-      '아래 "수동 호출"에서 cancel_booking 을 직접 불러 사람 승인 게이트가 어떻게 막아서는지 확인해 보라.',
+      '요청 접수 상태였던 예약 2건의 객실 확정을 마쳤다. BKG-2001은 기존 제주 재고를 사용했고, ' +
+      'BKG-2002는 부족했던 BUSAN-CITY 1실만 추가 확보해 배정했다. 서울 재고와 기존 확정 예약은 변경하지 않았으며, ' +
+      '사용자가 요청하지 않은 바우처 발급이나 취소·환불도 실행하지 않았다.',
   };
 }

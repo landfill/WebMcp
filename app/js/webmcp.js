@@ -4,7 +4,7 @@
  * 목적 3가지:
  *  1) 네임스페이스 차이 흡수 (document.modelContext / navigator.modelContext)
  *  2) 네이티브 구현이 없을 때만 shim 설치 — 절대로 네이티브를 가리지 않는다
- *  3) 등록한 도구 서술자를 페이지 쪽에 미러링 (표준에는 "내 도구 목록" 조회 API가 없다)
+ *  3) 등록한 도구 서술자를 페이지 쪽에 미러링 (shim에서도 같은 시뮬레이터 UI를 사용)
  */
 
 const listeners = new Set();

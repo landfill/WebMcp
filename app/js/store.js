@@ -32,10 +32,7 @@ function seed() {
       status: 'requested',
       checkIn: '04-14',
       nights: 3,
-      rooms: [
-        { code: 'BUSAN-CITY', qty: 1 },
-        { code: 'SEOUL-SUITE', qty: 3 },
-      ],
+      rooms: [{ code: 'BUSAN-CITY', qty: 1 }],
       note: '',
       cancelled: false,
     },
@@ -79,7 +76,6 @@ function seed() {
       assigned: 2,
     },
     // total 은 항상 assigned 이상이어야 한다 (BKG-2003 이 1실을 잡고 있다).
-    // 잔여 = 0 이므로 BKG-2002 의 3실 요청은 여전히 실패한다.
     {
       code: 'SEOUL-SUITE',
       name: '서울 시티 스위트',

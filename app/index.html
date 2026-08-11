@@ -165,7 +165,7 @@ document.modelContext.<span class="f">registerTool</span>({
     properties: { bookingId: { type: <span class="s">'string'</span> } },
     required: [<span class="s">'bookingId'</span>],
   },
-  annotations: { readOnlyHint: <span class="k">false</span>, destructiveHint: <span class="k">false</span> },
+  annotations: { readOnlyHint: <span class="k">false</span>, untrustedContentHint: <span class="k">false</span> },
   <span class="k">async</span> <span class="f">execute</span>({ bookingId }) {
     <span class="k">return</span> { content: [{ type: <span class="s">'text'</span>, text: <span class="s">`${bookingId} 배정 완료`</span> }] };
   },
@@ -180,23 +180,33 @@ controller.<span class="f">abort</span>();  <span class="c">// 해제는 unregis
             </li>
             <li><code>inputSchema</code> — JSON Schema로 쓰는 입력 계약</li>
             <li>
-              <code>annotations</code> — <code>readOnlyHint</code>,
-              <code>destructiveHint</code>, <code>idempotentHint</code>
+              <code>annotations</code> — 에이전트의 안전 판단을 돕는 선택 정보.
+              <code>readOnlyHint: true</code>는 상태를 바꾸지 않는 조회 도구,
+              <code>untrustedContentHint: true</code>는 외부 데이터나 사용자 작성
+              콘텐츠를 반환하는 도구라는 뜻이다. 현재 초안에는
+              <code>destructiveHint</code>와 <code>idempotentHint</code>가 없다.
             </li>
             <li>
               <code>signal</code> — 화면이 바뀌면 도구도 사라지게 만드는 장치
             </li>
           </ul>
           <div class="callout warn">
+            <strong>위 예제에서 <code>document.modelContext</code>를 쓰는 이유</strong>
             <p>
-              네임스페이스는 사양 진행 중 바뀌었다. 문서마다
-              <code>document.modelContext</code>와
-              <code>navigator.modelContext</code>가 섞여 있으니 양쪽 다 확인하는
-              feature detection을 쓰는 편이 안전하다.
+              현재 사양과 Chrome 문서는 <code>document.modelContext</code>를 사용한다.
+              <code>navigator.modelContext</code>는 이전 실험 버전의 이름이며 Chrome
+              150부터 폐기 대상이다. 구버전 실험 환경도 지원해야 할 때만 아래처럼
+              현재 이름을 먼저 확인하고 이전 이름을 대체 경로로 사용한다.
             </p>
+            <pre class="code compact"><code><span class="k">const</span> modelContext =
+  document.modelContext ?? navigator.modelContext; <span class="c">// 이전 실험 버전 호환</span>
+
+<span class="k">if</span> (!modelContext) {
+  <span class="k">throw new</span> Error(<span class="s">'이 브라우저에서는 WebMCP를 사용할 수 없습니다.'</span>);
+}</code></pre>
           </div>
           <button class="crosslink" data-goto="tool:assign_rooms">
-            이 도구를 시뮬레이터에서 직접 호출해 보기
+            시뮬레이션의 ‘수동 호출’에서 assign_rooms 실행하기
           </button>
         </section>
 
@@ -213,14 +223,51 @@ controller.<span class="f">abort</span>();  <span class="c">// 해제는 unregis
   &lt;<span class="k">input</span> name=<span class="s">"bookingId"</span>
          <span class="f">toolparamdescription</span>=<span class="s">"대상 예약 ID (예: BKG-2002)"</span> required&gt;
 &lt;/<span class="k">form</span>&gt;</code></pre>
+          <table class="compact-table">
+            <thead>
+              <tr><th>속성</th><th>등록되는 정보</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>toolname</code></td>
+                <td>에이전트가 호출할 도구의 고유 이름</td>
+              </tr>
+              <tr>
+                <td><code>tooldescription</code></td>
+                <td>도구의 기능과 사용 시점을 설명하는 문장</td>
+              </tr>
+              <tr>
+                <td><code>toolautosubmit</code></td>
+                <td>값을 채운 뒤 사람의 추가 클릭 없이 제출하도록 허용하는 불리언 속성. 생략하면 브라우저가 제출 버튼에 초점을 옮기고 사람의 확인을 기다린다.</td>
+              </tr>
+              <tr>
+                <td><code>name</code></td>
+                <td>각 입력 요소를 도구 인자의 속성명으로 변환한다.</td>
+              </tr>
+              <tr>
+                <td><code>toolparamdescription</code></td>
+                <td>각 인자의 의미와 허용 형식을 설명한다.</td>
+              </tr>
+              <tr>
+                <td><code>type</code>, <code>required</code> 등</td>
+                <td>브라우저가 입력 타입과 필수 여부를 JSON Schema로 합성할 때 사용한다.</td>
+              </tr>
+            </tbody>
+          </table>
           <p>
-            속성명에 <b>하이픈이 없다</b> — <code>toolname</code>이지
-            <code>tool-name</code>이 아니다. 사양이 진행 중이라 인터넷의 예제 중
-            <code>tool-name</code>, <code>autosubmit</code>처럼 틀린 것이 많다.
+            현재 선언형 API 초안의 속성명은 하이픈 없이 쓴다. 예를 들어
+            <code>toolname</code>, <code>tooldescription</code>,
+            <code>toolautosubmit</code>이 올바른 표기다. 초기 제안에 기반한 자료에는
+            다른 표기가 남아 있을 수 있으므로 현재 초안을 기준으로 확인한다.
           </p>
 
-          <h3>에이전트 호출과 사람 클릭 구분하기</h3>
-          <p>둘은 같은 <code>submit</code> 핸들러를 지난다.</p>
+          <h3>제출 주체 확인과 에이전트 응답 반환</h3>
+          <p>
+            사람과 에이전트의 제출은 같은 <code>submit</code> 핸들러를 지난다.
+            <code>e.agentInvoked</code>가 <code>true</code>이면 에이전트가 실행한
+            제출이고, <code>false</code>이면 사람이 제출 버튼을 누른 경우다.
+            에이전트 제출일 때는 <code>e.respondWith()</code>로 처리 결과를 돌려준다.
+          </p>
           <pre class="code"><code>form.<span class="f">addEventListener</span>(<span class="s">'submit'</span>, (e) =&gt; {
   e.<span class="f">preventDefault</span>();
   <span class="k">const</span> result = <span class="f">createTicket</span>(<span class="k">new</span> FormData(e.target));
@@ -228,59 +275,109 @@ controller.<span class="f">abort</span>();  <span class="c">// 해제는 unregis
     e.<span class="f">respondWith</span>(Promise.resolve({ content: [{ type: <span class="s">'text'</span>, text: result }] }));
   }
 });</code></pre>
-
-          <h3>에이전트가 조작 중임을 사용자에게 보이기</h3>
-          <p>
-            브라우저는 도구가 실행 중인 폼에
-            <code>:tool-form-active</code>를, 그 제출 버튼에
-            <code>:tool-submit-active</code>를 붙인다.
+          <p class="hint">
+            사람의 제출에서는 화면에 완료 상태를 표시하고, 에이전트의 제출에서는
+            같은 처리 결과를 화면에 표시하는 동시에 <code>respondWith()</code>로
+            에이전트에게 전달하면 된다.
           </p>
+
+          <h3>에이전트가 입력 중인 폼 표시</h3>
+          <p>
+            브라우저는 에이전트가 값을 채우는 동안 폼을
+            <code>:tool-form-active</code> 선택자에, 해당 제출 버튼을
+            <code>:tool-submit-active</code> 선택자에 일시적으로 매치시킨다. DOM에
+            속성이나 클래스가 추가되는 방식은 아니다. 다음 CSS처럼 실행 중인 폼과
+            제출 버튼의 모양을 바꿀 수 있다.
+          </p>
+          <pre class="code"><code>form<span class="f">:tool-form-active</span> {
+  outline: 2px solid #22d3ee;
+}
+
+button<span class="f">:tool-submit-active</span> {
+  background: #22d3ee;
+}</code></pre>
           <button class="crosslink" data-goto="form">
-            에이전트가 이 폼을 채우는 것 보기
+            시뮬레이션의 ‘문의 티켓’에서 에이전트 입력 재생하기
           </button>
         </section>
 
         <!-- 5 -->
         <section id="sec-design">
           <h2>도구 설계 원칙</h2>
-          <h3>description은 문서가 아니라 프롬프트다</h3>
-          <p>
-            실무에서 제일 자주 틀리는 지점이다. <code>description</code>은 사람이
-            읽는 API 문서가 아니라 <b>모델이 판단 근거로 쓰는 프롬프트</b>다.
-            "무엇을 하는가"만 적으면 부족하고, <b>언제 쓰는지</b>와
-            <b>실패하면 다음에 뭘 해야 하는지</b>까지 적어야 한다.
-          </p>
+          <h3>description 작성 기준</h3>
+          <div class="callout">
+            <strong>유의사항</strong>
+            <p>
+              <code>description</code>은 에이전트가 도구 선택에 사용하는 설명이다.
+              도구의 기능, 사용해야 하는 상황, 실행할 수 없는 조건을 짧고 구체적으로
+              작성한다. 후속 조치가 정해져 있다면 반환 결과에서 안내한다.
+            </p>
+          </div>
 
-          <h3>실패는 예외가 아니라 설명이다</h3>
+          <h3>실패 결과에 복구 정보 포함</h3>
           <p>
-            도구가 throw하면 에이전트는 거기서 막힌다. 대신 문장으로 돌려주면
-            스스로 복구한다. 이 랩의 <code>assign_rooms</code>는 객실이 모자랄
-            때 이렇게 답한다.
+            에이전트가 다음 행동을 선택할 수 있는 업무 실패는 예외만 발생시키지 말고,
+            실패 원인과 가능한 후속 조치를 결과에 포함한다. 이 시뮬레이션의
+            <code>assign_rooms</code>는 객실이 부족할 때 다음 결과를 반환한다.
           </p>
           <pre class="result bad">잔여 객실 부족으로 배정 실패.
 BUSAN-CITY: 필요 1실, 잔여 0실
-SEOUL-SUITE: 필요 3실, 잔여 0실
 open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
           <p style="margin-top: 14px">
-            마지막 줄이 핵심이다. 에러 메시지는 사람이 아니라
-            <b>에이전트를 위한 다음 지시문</b>이다.
+            마지막 줄의 <code>open_room_block</code>은 실제로 등록된 후속 도구다.
+            에이전트는 반환된 도구 이름을 도구 목록에서 찾아 필요한 객실 수만큼
+            확보한 뒤 <code>assign_rooms</code>를 다시 호출할 수 있다.
+          </p>
+          <pre class="code"><code><span class="k">await</span> document.modelContext.<span class="f">registerTool</span>({
+  name: <span class="s">'open_room_block'</span>,
+  description: <span class="s">'배정에 필요한 잔여 객실이 부족할 때 호텔에서 객실을 추가 확보한다.'</span>,
+  inputSchema: {
+    type: <span class="s">'object'</span>,
+    properties: {
+      roomCode: { type: <span class="s">'string'</span> },
+      qty: { type: <span class="s">'number'</span>, minimum: 1 },
+    },
+    required: [<span class="s">'roomCode'</span>, <span class="s">'qty'</span>],
+  },
+  execute: ({ roomCode, qty }) =&gt; <span class="f">openRoomBlock</span>(roomCode, qty),
+});</code></pre>
+
+          <h3>도구 설계 단위: 사용자 작업</h3>
+          <p>
+            핵심은 <b>사용자가 화면에서 완료하려는 단위 작업 하나를 도구 하나에
+            대응시키는 것</b>이다. 따라서 DB의 CRUD를 그대로 노출한
+            <code>update_row</code>보다, 객실 배정이라는 업무 결과를 나타내는
+            <code>assign_rooms</code>가 적합하다. CRUD를 피하는 것은 이 원칙을
+            적용한 결과다.
           </p>
 
-          <h3>도구 하나 = 의미 있는 작업 하나</h3>
+          <h3>화면 상태에 따른 도구 등록과 해제</h3>
           <p>
-            DB의 CRUD를 그대로 노출하지 않는다. <code>update_row</code>가 아니라
-            <code>assign_rooms</code>다. 사용자가 UI에서 하는 한 가지 일이
-            도구 하나에 대응해야 에이전트가 의도를 표현할 수 있다.
+            화면이 열릴 때 <code>AbortSignal</code>과 함께 도구를 등록하고, 화면이
+            닫힐 때 <code>abort()</code>를 호출해 해제한다. 아래 예제에서는 예약 상세
+            화면이 열린 동안에만 <code>add_booking_note</code>가 존재한다.
           </p>
+          <pre class="code"><code><span class="k">let</span> detailTools;
 
-          <h3>도구 생명주기를 화면 상태에 묶는다</h3>
-          <p>
-            로그인 전에는 <code>login</code>만, 로그인 후에는
-            <code>list_bookings</code>가 나타나는 식이다. 에이전트에게 보이는 도구
-            목록이 곧 "지금 가능한 일"이 된다.
+<span class="k">async function</span> <span class="f">openBookingDetail</span>() {
+  detailTools = <span class="k">new</span> AbortController();
+  <span class="k">await</span> document.modelContext.<span class="f">registerTool</span>({
+    name: <span class="s">'add_booking_note'</span>,
+    description: <span class="s">'현재 열려 있는 예약에 메모를 추가한다.'</span>,
+    inputSchema: { <span class="c">/* text 입력 정의 */</span> },
+    execute: ({ text }) =&gt; <span class="f">addNoteToOpenBooking</span>(text),
+  }, { signal: detailTools.signal });
+}
+
+<span class="k">function</span> <span class="f">closeBookingDetail</span>() {
+  detailTools?.<span class="f">abort</span>(); <span class="c">// add_booking_note 등록 해제</span>
+}</code></pre>
+          <p class="hint">
+            로그인 전후처럼 화면 전체의 사용 가능 작업이 달라질 때도 같은 방식을
+            적용한다. 에이전트에게 보이는 도구 목록이 현재 가능한 작업과 일치한다.
           </p>
           <button class="crosslink" data-goto="lifecycle">
-            화면을 열고 닫으면 도구가 붙었다 떨어지는 것 보기
+            시뮬레이션의 예약 상세에서 도구 등록·해제 확인하기
           </button>
         </section>
 
@@ -294,9 +391,9 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             인젝션이 곧바로 실제 환불과 객실 반납이 된다.
           </p>
           <p>
-            이 랩이 제시하는 답은 <b>되돌릴 수 없는 작업에 사람 승인 게이트</b>를
-            두는 것이다. 예약 취소·환불 도구는 <code>destructiveHint</code>를 달고,
-            실행되면 화면에 승인 카드를 띄운 채
+            이 시뮬레이션은 <b>되돌릴 수 없는 작업에 사람 승인 게이트</b>를
+            둔다. 현재 WebMCP 초안에는 파괴적 작업 전용 annotation이 없으므로
+            도구 설명에 승인 필요 여부를 명시하고, 실행 함수가 화면에 승인 카드를 띄운 채
             <b>사람이 버튼을 누를 때까지 Promise를 pending 상태로 붙잡는다.</b>
           </p>
           <p>
@@ -311,54 +408,69 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
         <!-- 7 -->
         <section id="sec-limits">
           <h2>실행 조건과 제약</h2>
-          <table>
+          <p>
+            WebMCP 도구가 브라우저에 등록되지 않으면 아래 순서로 환경을 확인한다.
+            1~4는 실행 전 필수 조건이고, 마지막 두 항목은 사용 방식에서 생기는
+            구조적 제약이다.
+          </p>
+          <ol class="checklist">
+            <li>Chrome 149 이상에서 로컬 테스트 플래그를 켜고 브라우저를 다시 시작한다.</li>
+            <li>페이지를 HTTPS 또는 <code>localhost</code>에서 연다.</li>
+            <li>교차 출처 iframe 안에서 실행한다면 <code>allow="tools"</code>를 추가한다.</li>
+            <li>DevTools의 Application → WebMCP에서 등록된 도구와 실행 결과를 확인한다.</li>
+          </ol>
+          <table class="compact-table">
+            <thead>
+              <tr><th>확인 항목</th><th>조건</th><th>확인 방법 또는 영향</th></tr>
+            </thead>
+            <tbody>
             <tr>
               <th>Chrome 버전</th>
               <td>
-                149+ (오리진 트라이얼). 로컬은
-                <code>chrome://flags/#enable-webmcp-testing</code>
+                149 이상
               </td>
+              <td>배포 환경은 오리진 트라이얼 토큰, 로컬은 <code>chrome://flags/#enable-webmcp-testing</code>를 사용한다.</td>
             </tr>
             <tr>
               <th>DevTools 패널</th>
               <td>
-                <code>chrome://flags/#devtools-webmcp-support</code> — API
-                동작엔 불필요하나, 브라우저가 도구를 실제로 인식했는지 확인하는
-                유일한 수단
+                <code>chrome://flags/#devtools-webmcp-support</code>
               </td>
+              <td>API 실행 자체의 필수 조건은 아니지만 도구 목록·인자·반환값을 직접 검사할 수 있다.</td>
             </tr>
             <tr>
               <th>보안 컨텍스트</th>
               <td>HTTPS 또는 <code>localhost</code></td>
+              <td>일반 HTTP 페이지에서는 <code>modelContext</code>를 사용할 수 없다.</td>
             </tr>
             <tr>
               <th>오리진 격리</th>
               <td>
-                <code>Origin-Agent-Cluster: ?0</code> 헤더가 있으면 API 비활성
+                오리진 키 기반 에이전트 클러스터 필요
               </td>
+              <td><code>Origin-Agent-Cluster: ?0</code> 응답 헤더가 있으면 등록이 <code>SecurityError</code>로 실패할 수 있다.</td>
             </tr>
             <tr>
               <th>교차 오리진 iframe</th>
               <td>
-                <code>&lt;iframe allow="tools"&gt;</code> 필요. 없으면
-                <code>NotAllowedError</code>
+                <code>&lt;iframe allow="tools"&gt;</code>
               </td>
+              <td>권한 위임이 없으면 <code>NotAllowedError</code>가 발생한다.</td>
             </tr>
             <tr>
               <th>헤드리스</th>
-              <td>불가. 탭 또는 웹뷰가 실제로 열려 있어야 한다</td>
+              <td>가시적인 브라우징 컨텍스트 필요</td>
+              <td>도구의 JavaScript와 사람 협업 UI가 동작하도록 탭 또는 웹뷰가 열려 있어야 한다.</td>
             </tr>
             <tr>
               <th>발견 가능성</th>
-              <td>
-                에이전트가 사이트를 직접 방문해야 도구의 존재를 안다. 중앙
-                레지스트리가 없다
-              </td>
+              <td>방문한 문서의 활성 도구만 발견</td>
+              <td>중앙 레지스트리가 없으므로 에이전트가 해당 사이트를 열어야 도구를 볼 수 있다.</td>
             </tr>
+            </tbody>
           </table>
           <p>
-            마지막 두 개가 실무에서 제일 중요하다. WebMCP는 백엔드 API의
-            대체재가 아니라
+            <strong>주의사항:</strong> WebMCP는 백엔드 API의 대체재가 아니라
             <b>"사용자가 이미 열어 둔 탭에서, 사용자의 세션으로, 사용자가 볼 수
             있게"</b> 작업을 수행하는 수단이다.
           </p>
@@ -367,10 +479,11 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
         <section id="sec-next" style="margin-bottom: 0">
           <h2>이제 직접 확인한다</h2>
           <p>
-            두 번째 탭은 호텔 예약·객실을 다루는 여행사 운영 콘솔이다. 왼쪽은 사람이 쓰는
-            화면, 오른쪽은 에이전트가 도구를 부르는 쪽이다. 시나리오를 한 단계씩
-            진행하면서, 도구 호출이 왼쪽 표의 어느 행을 바꾸는지 눈으로 따라갈 수
-            있다.
+            <strong>이 시뮬레이션은 고객용 호텔 예약 화면이 아니라 여행사 운영자용
+            관리 콘솔이다.</strong> 예약 상태 변경, 객실 재고 확보, 문의 접수처럼
+            운영자가 처리하는 업무를 대상으로 한다. 두 번째 탭의 왼쪽은 운영자가
+            사용하는 화면이고, 오른쪽은 에이전트의 도구 호출 과정이다. 시나리오를
+            한 단계씩 진행하면서 도구 호출이 왼쪽 표의 어느 행을 바꾸는지 확인한다.
           </p>
           <button class="crosslink" data-goto="scenario">
             시뮬레이션 시작하기
@@ -393,10 +506,10 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
       <div class="sim-intro">
         <div>
           <p class="eyebrow">Trevally 여행 예약 콘솔</p>
-          <h2>호텔 예약·객실을 다루는 에이전트</h2>
+          <h2>여행사 운영자용 호텔 예약·객실 관리 시뮬레이션</h2>
           <p>
-            도구 호출이 끝나면 그 호출이 건드린 행에 불이 들어온다. 오른쪽 한 수와
-            왼쪽 한 줄을 짝지어 보면 된다.
+            고객이 예약을 생성하는 화면이 아니라, 운영자가 접수된 예약과 객실 재고를
+            처리하는 관리 화면이다. 도구 호출이 끝나면 변경된 행이 강조된다.
           </p>
         </div>
         <button class="crosslink back" data-goto="concept:sec-how">
@@ -472,8 +585,13 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             <div class="block-body">
               <p class="hint">
                 JS 등록 없이 마크업만으로 도구가 된다. 에이전트가 이 폼을 채우는
-                동안 <code>:tool-form-active</code>가 붙어 테두리가 빛난다.
+                동안 폼이 <code>:tool-form-active</code> 선택자에 매치되어 테두리가 빛난다.
               </p>
+              <div class="route-guide">
+                <b>확인 방법</b>
+                아래 <b>에이전트 입력 재생</b>을 누르면 예약번호와 문의 내용이 차례로
+                채워지고, 실행 중인 폼의 청록색 테두리와 제출 버튼 색상이 바뀐다.
+              </div>
               <form
                 id="ticket-form"
                 toolname="create_support_ticket"
@@ -499,6 +617,9 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
                 </label>
                 <button type="submit">티켓 생성</button>
               </form>
+              <button id="demo-form-fill" class="secondary" type="button" style="margin-top: 14px">
+                에이전트 입력 재생
+              </button>
               <ul id="tickets" class="log" style="margin-top: 14px"></ul>
             </div>
           </div>
@@ -541,7 +662,12 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             <div class="block-head">
               <div>
                 <h3>운영 시나리오</h3>
-                <div class="stepper-sub">사용자 지시: "밀린 예약 확정해줘"</div>
+                <div class="stepper-sub">사용자 지시: “요청 접수 상태인 예약을 모두 객실 확정해줘”</div>
+                <div class="stepper-scope">
+                  BKG-2001 · 제주 2실(재고 충분) / BKG-2002 · 부산 1실(1실 부족)<br />
+                  부산 부족 원인: 같은 기간의 BKG-2004가 기존 2실을 사용 중<br />
+                  추가 객실 확보는 부족한 <code>BUSAN-CITY</code>에만 실행한다.
+                </div>
               </div>
               <div class="stepper-count" id="step-count">준비됨</div>
             </div>
@@ -569,6 +695,12 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
               </button>
             </div>
             <div class="block-body">
+              <div class="route-guide" id="manual-guide">
+                <b>수동 호출 확인 순서</b>
+                ① 선택된 도구를 확인하고 ② 인자 JSON을 입력하거나 수정한 뒤
+                ③ 아래 <b>호출</b> 버튼을 누른다. 결과는 바로 아래의
+                ‘원시 호출 로그’와 왼쪽 예약·객실 표에서 확인한다.
+              </div>
               <label class="field" style="margin-top: 0">
                 <span>도구</span>
                 <select id="tool-select"></select>

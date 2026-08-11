@@ -95,7 +95,13 @@ function goTo(target) {
         select.value = name;
         showToolDesc();
         fillSampleArgs();
-        if (kind === 'refund') {
+        if (name === 'assign_rooms') {
+          $('#tool-args').value = JSON.stringify(
+            { bookingId: 'BKG-2002' },
+            null,
+            2,
+          );
+        } else if (kind === 'refund') {
           $('#tool-args').value = JSON.stringify(
             { bookingId: 'BKG-2004', reason: '고객 일정 변경' },
             null,
@@ -104,8 +110,10 @@ function goTo(target) {
         }
       }
       land($('#manual-block'));
+      setTimeout(() => land($('#run-tool')), 500);
     } else if (kind === 'form') {
       land($('#form-block'));
+      setTimeout(() => land($('#demo-form-fill')), 500);
     } else if (kind === 'lifecycle') {
       openBooking('BKG-2002');
       land($('#booking-detail'));
@@ -410,9 +418,11 @@ function showToolDesc() {
     return;
   }
   const ro = tool.annotations?.readOnlyHint ? ' · 읽기 전용' : '';
-  const de = tool.annotations?.destructiveHint ? ' · ⚠ 파괴적' : '';
+  const untrusted = tool.annotations?.untrustedContentHint
+    ? ' · 외부/사용자 콘텐츠 포함'
+    : '';
   $('#tool-desc').innerHTML =
-    `<b>${tool.name}</b>${ro}${de}<br>${escapeHtml(tool.description)}` +
+    `<b>${tool.name}</b>${ro}${untrusted}<br>${escapeHtml(tool.description)}` +
     `<br><span class="think">입력: ${escapeHtml(
       JSON.stringify(tool.inputSchema?.properties ?? {}),
     )}</span>`;
@@ -652,7 +662,7 @@ await registerTool({
   async execute({ bookingId, body }) {
     const form = $('#ticket-form');
 
-    // 네이티브라면 브라우저가 :tool-form-active 를 알아서 붙인다.
+    // 네이티브라면 실행 중인 폼이 :tool-form-active 의사 클래스에 매치된다.
     // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
     agentDrivingForm = true;
     form.classList.add('tool-form-active');
@@ -668,6 +678,21 @@ await registerTool({
     }
     return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
   },
+});
+
+$('#demo-form-fill').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = '입력 중…';
+  try {
+    await invoke('create_support_ticket_via_form', {
+      bookingId: 'BKG-2002',
+      body: '늦은 체크인이 가능한지 확인해 주세요.',
+    });
+  } finally {
+    button.disabled = false;
+    button.textContent = '에이전트 입력 다시 재생';
+  }
 });
 
 fillSampleArgs();
