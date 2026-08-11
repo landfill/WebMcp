@@ -4,6 +4,7 @@ import {
   listTools,
   callTool,
   registerTool,
+  registrationReport,
   textResult,
 } from './webmcp.js';
 import {
@@ -117,6 +118,99 @@ document.addEventListener('click', (e) => {
   const link = e.target.closest('[data-goto]');
   if (link) goTo(link.dataset.goto);
 });
+
+// ---------------------------------------------------------------------------
+// 검증 패널
+//
+// 시뮬레이터는 미러에 보관한 서술자의 execute() 를 직접 부른다.
+// 즉 "에이전트 → 브라우저 → 페이지" 홉을 건너뛴다. 페이지가 자기 도구를
+// 브라우저를 거쳐 되부를 수 있는 API 가 없기 때문인데, 그 결과 시뮬레이터가
+// 잘 도는 것이 곧 WebMCP 가 동작한다는 증거는 아니다. 숨기지 말고 명시한다.
+// ---------------------------------------------------------------------------
+
+function renderVerify() {
+  const r = registrationReport();
+  const rows = r.rows
+    .map(
+      (t) =>
+        `<li><span class="t">${t.accepted ? '✓' : '✕'}</span> ${t.name}` +
+        (t.error ? ` — <span style="color:var(--bad)">${escapeHtml(t.error)}</span>` : '') +
+        `</li>`,
+    )
+    .join('');
+
+  $('#verify-body').innerHTML = `
+    <p class="hint" style="margin-top:0">
+      런타임 <b style="color:var(--text)">${r.mode}</b> · ${escapeHtml(r.namespace)}<br>
+      감지된 메서드: <code>${escapeHtml(r.methods.join(', ') || '(없음)')}</code>
+    </p>
+
+    <table class="grid" style="margin: 4px 0 14px">
+      <thead><tr><th>확인 대상</th><th>시뮬레이터</th><th>DevTools 패널</th></tr></thead>
+      <tbody>
+        <tr><td>execute() 로직이 맞는가</td><td>✓</td><td>—</td></tr>
+        <tr><td>registerTool() 이 예외 없이 통과했는가</td><td>✓</td><td>—</td></tr>
+        <tr><td>브라우저가 도구를 열거하는가</td><td class="zero">✕</td><td>✓</td></tr>
+        <tr><td>선언형 폼이 도구로 합성됐는가</td><td class="zero">✕</td><td>✓</td></tr>
+        <tr><td>브라우저 경로로 실제 호출되는가</td><td class="zero">✕</td><td>✓</td></tr>
+      </tbody>
+    </table>
+
+    <p class="hint">
+      시뮬레이터의 "호출"은 페이지가 자기 <code>execute()</code>를 직접 부르는 것이다.
+      <b style="color:var(--text)">에이전트 → 브라우저 → 페이지 홉을 건너뛴다.</b>
+      페이지가 자기 도구를 브라우저를 거쳐 되부르는 API 는 없기 때문이다.
+      실행되는 함수는 진짜 에이전트가 부르는 것과 동일하지만,
+      전달 경로는 검증되지 않는다.
+    </p>
+    <p class="hint">
+      전달 경로까지 확인하려면
+      <code>chrome://flags/#devtools-webmcp-support</code> 를 켜고 DevTools 의
+      WebMCP 패널에서 도구가 열거되는지 보거나, Model Context Tool Inspector
+      확장으로 외부에서 호출해 보라.
+    </p>
+
+    <p class="hint" style="margin-bottom:6px">등록 결과 (${r.rows.length}개)</p>
+    <ul class="log">${rows}</ul>
+  `;
+}
+
+$('#verify-toggle').addEventListener('click', (e) => {
+  const body = $('#verify-body');
+  body.hidden = !body.hidden;
+  e.target.textContent = body.hidden ? '펼치기' : '접기';
+  e.target.setAttribute('aria-expanded', String(!body.hidden));
+});
+
+// 목차 현재 위치 표시
+{
+  const links = [...document.querySelectorAll('.doc-toc a')];
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const seen = new Set();
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) seen.add(e.target.id);
+        else seen.delete(e.target.id);
+      }
+      const first = links.find((a) => seen.has(a.getAttribute('href').slice(1)));
+      links.forEach((a) => a.classList.toggle('active', a === first));
+    },
+    { rootMargin: '-84px 0px -60% 0px' },
+  );
+  for (const id of byId.keys()) {
+    const el = document.getElementById(id);
+    if (el) io.observe(el);
+  }
+  links.forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      document
+        .getElementById(a.getAttribute('href').slice(1))
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }),
+  );
+}
 
 // 사람 승인이 필요해지면 그 화면으로 데려온다
 document.addEventListener('approval-needed', () => {
@@ -570,6 +664,7 @@ await registerTool({
 });
 
 fillSampleArgs();
+renderVerify();
 
 // 진입 시 탭 결정: ?tab= > #해시 > 기본(개념)
 const params = new URLSearchParams(location.search);

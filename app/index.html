@@ -52,16 +52,34 @@
       role="tabpanel"
       aria-labelledby="tab-btn-concept"
     >
-      <article class="doc">
-        <p class="eyebrow">Chrome 149+ · W3C 제안 단계</p>
-        <h1 class="doc-title">
-          웹페이지가 AI 에이전트에게<br />기능을 직접 노출하는 방법
-        </h1>
-        <p class="doc-standfirst">
-          에이전트가 화면을 보고 버튼을 추측하는 대신, 사이트가 "내가 제공하는
-          기능은 이것들이다"를 선언한다. 이 문서를 읽고, 두 번째 탭에서 실제로
-          도는 것을 확인한다.
-        </p>
+      <div class="doc">
+        <nav class="doc-toc" aria-label="목차">
+          <p class="eyebrow">목차</p>
+          <ol id="toc">
+            <li><a href="#sec-problem">지금 방식의 한계</a></li>
+            <li><a href="#sec-how">WebMCP의 동작 방식</a></li>
+            <li><a href="#sec-imperative">명령형 API</a></li>
+            <li><a href="#sec-declarative">선언형 API</a></li>
+            <li><a href="#sec-design">도구 설계 원칙</a></li>
+            <li><a href="#sec-security">보안과 승인 게이트</a></li>
+            <li><a href="#sec-limits">실행 조건과 제약</a></li>
+            <li><a href="#sec-next">직접 확인하기</a></li>
+          </ol>
+          <button class="crosslink" data-goto="scenario" style="margin: 20px 0 0">
+            시뮬레이션 열기
+          </button>
+        </nav>
+
+        <article class="doc-main">
+          <p class="eyebrow">Chrome 149+ · W3C 제안 단계</p>
+          <h1 class="doc-title">
+            웹페이지가 AI 에이전트에게 기능을 직접 노출하는 방법
+          </h1>
+          <p class="doc-standfirst">
+            에이전트가 화면을 보고 버튼을 추측하는 대신, 사이트가 "내가 제공하는
+            기능은 이것들이다"를 선언한다. 이 문서를 읽고, 두 번째 탭에서 실제로
+            도는 것을 확인한다.
+          </p>
 
         <!-- 1 -->
         <section id="sec-problem">
@@ -358,7 +376,8 @@ restock_item 으로 입고한 뒤 다시 시도하라.</pre>
             시뮬레이션 시작하기
           </button>
         </section>
-      </article>
+        </article>
+      </div>
     </section>
 
     <!-- ===================================================================
@@ -499,6 +518,20 @@ restock_item 으로 입고한 뒤 다시 시도하라.</pre>
               <b>도구 호출</b>
               <span>왼쪽을 픽셀로 더듬지 않고 WebMCP 도구를 부른다.</span>
             </div>
+          </div>
+
+          <div class="block" id="verify-block">
+            <div class="block-head">
+              <h3>이 시뮬레이터가 증명하는 것 / 못 하는 것</h3>
+              <button
+                id="verify-toggle"
+                class="crosslink back"
+                aria-expanded="false"
+              >
+                펼치기
+              </button>
+            </div>
+            <div class="block-body" id="verify-body" hidden></div>
           </div>
 
           <div id="approvals" class="approvals"></div>

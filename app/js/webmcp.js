@@ -105,17 +105,26 @@ export const runtime = native
 export async function registerTool(descriptor) {
   const controller = new AbortController();
 
-  const entry = { descriptor, active: true, controller };
+  const entry = {
+    descriptor,
+    active: true,
+    controller,
+    accepted: null, // 런타임이 등록을 받아들였는가
+    error: null,
+  };
   mirror.set(descriptor.name, entry);
 
   try {
     await runtime.target.registerTool(descriptor, {
       signal: controller.signal,
     });
+    entry.accepted = true;
   } catch (err) {
-    mirror.delete(descriptor.name);
-    notify();
-    throw err;
+    // 도구 하나가 거부됐다고 나머지까지 못 붙이면 진단이 어렵다.
+    // 기록해 두고 계속 진행한다 — 검증 패널이 이걸 보여준다.
+    entry.accepted = false;
+    entry.error = String(err?.message ?? err);
+    console.warn(`[WebMCP] registerTool("${descriptor.name}") 거부됨:`, err);
   }
 
   controller.signal.addEventListener('abort', () => {
@@ -157,6 +166,29 @@ export async function callTool(name, args) {
     ms: Math.round(performance.now() - started),
     result: normalizeResult(raw),
     raw,
+  };
+}
+
+/**
+ * 등록 결과 보고 — "브라우저가 실제로 받아들였는가"를 화면에 드러내기 위한 것.
+ *
+ * 주의: accepted:true 는 registerTool() 이 예외 없이 반환했다는 뜻이지,
+ * 브라우저가 이 도구를 에이전트에게 노출한다는 증거는 아니다.
+ * 그건 DevTools 의 WebMCP 패널이나 외부 에이전트로만 확인할 수 있다.
+ */
+export function registrationReport() {
+  const rows = [...mirror.values()].map((e) => ({
+    name: e.descriptor.name,
+    accepted: e.accepted,
+    error: e.error,
+  }));
+  return {
+    mode: runtime.mode,
+    namespace: runtime.namespace,
+    methods: runtime.methods,
+    total: rows.length,
+    rejected: rows.filter((r) => r.accepted === false),
+    rows,
   };
 }
 
