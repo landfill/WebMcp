@@ -384,21 +384,76 @@ JSON.stringify({
 
 ---
 
-## 6. 파일
+## 6. 코드베이스 구조
+
+빌드 단계가 없는 **정적 ES module** 프로젝트다. `npm start`는 `app/`을 정적 서버로
+띄울 뿐이고, Vercel은 `vercel.json`의 `outputDirectory: "app"`으로 같은 디렉터리를
+배포한다.
+
+### 디렉터리
 
 ```
-app/
-  index.html          개념 + 시뮬레이션 + AI 여행 준비 화면
-  styles.css
-  js/
-    webmcp.js         어댑터: 탐지 · shim · 등록 래퍼 · 미러 · 결과 정규화
-    native-demo.js    shim 없는 여행 준비 도구 등록 · 실행 기록
-    store.js          운영 도메인 상태 + 승인 게이트 + 리셋
-    tools.js          WebMCP 도구 정의 (여기가 본체)
-    scenario.js       에이전트 루프 (async generator, 지연 평가)
-    main.js           렌더링 · 스테퍼 드라이버 · 수동 호출
-README.md
+WebMcp/
+├── app/                        # 배포·실행 대상 (정적 사이트 루트)
+│   ├── index.html              # 3개 탭(개념 · 시뮬레이션 · AI 여행 준비) 마크업
+│   ├── styles.css              # 공유 디자인 토큰 + 탭별 레이아웃
+│   └── js/
+│       ├── main.js             # 진입점: 탭 · 렌더링 · 스테퍼 · 수동 호출 · 부팅
+│       ├── webmcp.js           # WebMCP 어댑터 (탐지 · shim · 등록 · 미러 · 호출)
+│       ├── tools.js            # 시뮬 탭용 WebMCP 도구 정의
+│       ├── store.js            # 운영 도메인 상태 · pub-sub · 승인 게이트
+│       ├── scenario.js         # 운영 시나리오 async generator
+│       └── native-demo.js      # 3번째 탭 전용 네이티브 WebMCP 도구 (shim 없음)
+├── package.json                # dev 서버 스크립트 (`serve app -l 4173`)
+├── vercel.json                 # 정적 배포 · 보안 헤더
+├── .github/workflows/          # Claude Code / PR 리뷰 자동화
+└── README.md                   # 개념 문서 + 이 저장소 설명
 ```
 
-시뮬레이터는 `tools.js` → `scenario.js` → `webmcp.js` → `main.js`, 네이티브 예시는
-`native-demo.js` → `main.js` 순서로 읽는 것을 권한다.
+### 모듈 의존 관계
+
+```
+index.html
+    └── main.js ─────────────────────────────────────────┐
+            │                                            │
+            ├── webmcp.js ◄── tools.js ── store.js       │
+            │        ▲              ▲                    │
+            │        │              └── scenario.js      │
+            │        │                                   │
+            └── native-demo.js (탭 3, document.modelContext 직접)
+```
+
+| 모듈 | 역할 | 주요 export |
+|---|---|---|
+| `main.js` | UI 오케스트레이션. 탭 전환 시 도구 생명주기도 여기서 관리 | — (진입점) |
+| `webmcp.js` | `document.modelContext` 탐지, 네이티브 없을 때만 shim 설치, 등록 미러, 시뮬레이터용 `callTool` | `runtime`, `registerTool`, `listTools`, `callTool`, `registrationReport` |
+| `tools.js` | 시뮬 탭 도구 7+1개 정의. 예약 상세 열림 시 `add_booking_note` 조건부 등록 | `registerAllTools`, `unregisterAllTools`, `syncContextualTools` |
+| `store.js` | 예약·객실 재고 시드 데이터, `commit`/`subscribe`, `requestApproval` | `state`, `commit`, `SHORTAGE_MARK` |
+| `scenario.js` | `next()` 시점의 실제 `state`를 읽어 다음 수를 정하는 async generator | `scenario` |
+| `native-demo.js` | 부산 여행 준비 탭. shim·페이지 내부 호출 없이 `document.modelContext`만 사용 | `activateNativeDemo`, `deactivateNativeDemo` |
+
+### 탭별 코드 경로
+
+| 탭 | 사용자가 보는 것 | 도구 등록 경로 |
+|---|---|---|
+| 1 · 개념 | `index.html` 정적 문서 + `data-goto` 딥링크 | 없음 |
+| 2 · 시뮬레이션 | `tools.js` → `webmcp.js` → `main.js` 시뮬레이터 | `registerAllTools()` + 선언형 `<form toolname>` + `create_support_ticket_via_form` |
+| 3 · AI 여행 준비 | `native-demo.js` → Chrome 에이전트 | `list_trip_tasks` / `add_trip_task` / `complete_trip_task` (탭 진입 시만) |
+
+탭 2와 3은 **동시에 도구를 등록하지 않는다.** `main.js`의 `selectTab()`이
+`setSimulationToolsActive()` / `activateNativeDemo()` / `deactivateNativeDemo()`로
+전환한다.
+
+### 읽는 순서 (권장)
+
+1. **시뮬레이션 흐름:** `tools.js` → `scenario.js` → `webmcp.js` → `main.js`
+2. **네이티브 예시:** `native-demo.js` → `main.js` (탭 전환·생명주기 부분)
+3. **도메인 상태:** `store.js`는 `tools.js`와 `scenario.js` 양쪽에서 참조
+
+### 실행·배포
+
+| 명령 / 설정 | 내용 |
+|---|---|
+| `npm start` / `npm run dev` | `http://localhost:4173` — `app/` 정적 서빙 |
+| `vercel.json` | `outputDirectory: "app"`, `Referrer-Policy` · `X-Content-Type-Options` 헤더 |
+| 빌드 | 없음 — 소스 그대로 배포 |
