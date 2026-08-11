@@ -47,7 +47,11 @@ jobs:
             Review this pull request even if you have already reviewed it on an earlier commit, and
             even if it was opened by another agent — every push to the branch gets a fresh review of
             the current diff. Skip only the changes you already flagged in a previous comment.
-          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*),Bash(git diff:*)"'
+          # Task must be listed explicitly: --allowed-tools replaces the default
+          # set, and the review plugin does all of its actual reviewing in
+          # subagents. Without it every spawn is denied and the review comes back
+          # empty. --verbose makes the denied tool names visible in the run log.
+          claude_args: '--verbose --allowed-tools "Task,Read,Grep,Glob,TodoWrite,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr list:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*),Bash(git diff:*)"'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
