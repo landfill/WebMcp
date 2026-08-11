@@ -18,6 +18,7 @@ import {
 } from './store.js';
 import { registerAllTools, syncContextualTools } from './tools.js';
 import { scenario } from './scenario.js';
+import { activateNativeDemo, deactivateNativeDemo } from './native-demo.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -35,18 +36,43 @@ badge.title = `사용 가능한 메서드: ${runtime.methods.join(', ') || '(없
 console.log('[WebMCP] runtime =', runtime);
 
 // ---------------------------------------------------------------------------
-// 탭 + 두 탭을 잇는 딥링크
+// 탭 + 개념/시뮬레이션을 잇는 딥링크
 //
 // 탭으로 갈라 놓되, 개념 문단에서 시뮬레이터의 "그 부분"으로 바로 갈 수 있게
 // 하고 반대 방향 링크도 둔다. 링크가 한쪽으로만 나 있으면 결국
 // "앱을 참조하는 문서"로 읽힌다.
 // ---------------------------------------------------------------------------
 
-const TABS = ['concept', 'sim'];
+const TABS = ['concept', 'sim', 'native'];
 let currentTab = 'concept';
+
+function renderRuntimeBadge(tab = currentTab) {
+  if (tab === 'native') {
+    const available =
+      window.isSecureContext &&
+      document.modelContext &&
+      typeof document.modelContext.registerTool === 'function';
+    badge.className = `badge ${available ? 'native' : 'blocked'}`;
+    badge.textContent = available
+      ? 'Chrome 에이전트 연동 가능'
+      : 'WebMCP 설정 필요';
+    badge.title = available
+      ? '3번째 탭의 도구는 브라우저 에이전트만 호출할 수 있다.'
+      : 'Chrome WebMCP 실험 기능 또는 오리진 트라이얼이 필요하다.';
+    return;
+  }
+
+  badge.className = `badge ${runtime.mode}`;
+  badge.textContent =
+    runtime.mode === 'native'
+      ? `네이티브 WebMCP · ${runtime.namespace}`
+      : '내장 shim · 네이티브 WebMCP 없음 (chrome://flags/#enable-webmcp-testing)';
+  badge.title = `사용 가능한 메서드: ${runtime.methods.join(', ') || '(없음)'}`;
+}
 
 function selectTab(name, { push = true } = {}) {
   if (!TABS.includes(name) || name === currentTab) return;
+  if (currentTab === 'native') deactivateNativeDemo();
   if (currentTab === 'sim') stopAuto(); // 안 보이는 탭에서 자동 재생이 도는 것을 막는다
   currentTab = name;
 
@@ -54,6 +80,8 @@ function selectTab(name, { push = true } = {}) {
     $(`#tab-${t}`).hidden = t !== name;
     $(`#tab-btn-${t}`).setAttribute('aria-selected', String(t === name));
   }
+  renderRuntimeBadge(name);
+  if (name === 'native') void activateNativeDemo();
   if (push) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
 }
@@ -705,8 +733,10 @@ const wantsSim =
   params.get('tab') === 'sim' ||
   location.hash === '#sim' ||
   (Number.isFinite(autostep) && autostep > 0);
+const wantsNative = params.get('tab') === 'native' || location.hash === '#native';
 
-if (wantsSim) selectTab('sim', { push: false });
+if (wantsNative) selectTab('native', { push: false });
+else if (wantsSim) selectTab('sim', { push: false });
 
 // ?autostep=N — 로드 직후 N 단계를 자동 진행한다.
 // 시연용이자, 헤드리스 스크린샷으로 스테퍼를 검증하는 수단이다.
