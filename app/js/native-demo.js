@@ -142,7 +142,12 @@ function nativeTools() {
       description:
         '현재 부산 여행의 출발 전 준비 목록을 조회한다. 준비 항목을 추가하거나 완료하기 전에 현재 상태와 정확한 taskId를 확인할 때 사용한다.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        untrustedContentHint: true,
+      },
       async execute(args = {}) {
         const result = tasks.map((task) => ({ ...task }));
         logInvocation('list_trip_tasks', args, `여행 준비 ${result.length}개를 확인했습니다.`);

@@ -16,7 +16,11 @@ import {
   findBooking,
   SHORTAGE_MARK,
 } from './store.js';
-import { registerAllTools, syncContextualTools } from './tools.js';
+import {
+  registerAllTools,
+  unregisterAllTools,
+  syncContextualTools,
+} from './tools.js';
 import { scenario } from './scenario.js';
 import { activateNativeDemo, deactivateNativeDemo } from './native-demo.js';
 
@@ -81,7 +85,12 @@ function selectTab(name, { push = true } = {}) {
     $(`#tab-btn-${t}`).setAttribute('aria-selected', String(t === name));
   }
   renderRuntimeBadge(name);
-  if (name === 'native') void activateNativeDemo();
+  if (name === 'native') {
+    setSimulationToolsActive(false);
+    void activateNativeDemo();
+  } else {
+    void setSimulationToolsActive(true);
+  }
   if (push) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
 }
@@ -664,49 +673,116 @@ $('#step-auto').addEventListener('click', () => {
   nextStep();
 });
 
-// ---------------------------------------------------------------------------
-// 부팅
-// ---------------------------------------------------------------------------
-
-await registerAllTools();
-
 // 선언형 폼의 대응 도구.
 // 네이티브 브라우저는 <form tool> 을 읽어 자체 레지스트리에 도구를 합성하는데,
 // 그 도구는 페이지에서 열람할 수 없다(브라우저가 소유). 시뮬레이터에서 같은
 // 동작을 보이기 위해, 폼을 채우고 제출하는 명령형 대응물을 따로 등록한다.
-await registerTool({
-  name: 'create_support_ticket_via_form',
-  description:
-    '문의 티켓 폼을 채워 제출한다. 선언형 <form toolname="create_support_ticket"> 을 ' +
-    '브라우저가 도구로 합성해 호출할 때와 동일한 경로를 탄다.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      bookingId: { type: 'string' },
-      body: { type: 'string' },
+function supportToolDescriptor() {
+  return {
+    name: 'create_support_ticket_via_form',
+    description:
+      '문의 티켓 폼을 채워 제출한다. 선언형 <form toolname="create_support_ticket"> 을 ' +
+      '브라우저가 도구로 합성해 호출할 때와 동일한 경로를 탄다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bookingId: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['bookingId', 'body'],
     },
-    required: ['bookingId', 'body'],
-  },
-  async execute({ bookingId, body }) {
-    const form = $('#ticket-form');
+    async execute({ bookingId, body }) {
+      const form = $('#ticket-form');
 
-    // 네이티브라면 실행 중인 폼이 :tool-form-active 의사 클래스에 매치된다.
-    // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
-    agentDrivingForm = true;
-    form.classList.add('tool-form-active');
-    try {
-      form.bookingId.value = bookingId;
-      await sleep(500);
-      form.body.value = body;
-      await sleep(400);
-      form.requestSubmit();
-    } finally {
-      form.classList.remove('tool-form-active');
-      agentDrivingForm = false;
-    }
-    return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
-  },
-});
+      // 네이티브라면 실행 중인 폼이 :tool-form-active 의사 클래스에 매치된다.
+      // shim 모드에서는 같은 UX 를 보여주기 위해 동등한 클래스를 직접 토글한다.
+      agentDrivingForm = true;
+      form.classList.add('tool-form-active');
+      try {
+        form.bookingId.value = bookingId;
+        await sleep(500);
+        form.body.value = body;
+        await sleep(400);
+        form.requestSubmit();
+      } finally {
+        form.classList.remove('tool-form-active');
+        agentDrivingForm = false;
+      }
+      return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
+    },
+  };
+}
+
+function setDeclarativeSupportToolActive(active) {
+  const form = $('#ticket-form');
+  if (active) {
+    form.setAttribute('toolname', 'create_support_ticket');
+    form.setAttribute(
+      'tooldescription',
+      '고객 문의 티켓을 생성한다. 예약에 대한 투숙객 문의를 접수할 때 사용한다.',
+    );
+    form.setAttribute('toolautosubmit', '');
+    return;
+  }
+
+  form.removeAttribute('toolname');
+  form.removeAttribute('tooldescription');
+  form.removeAttribute('toolautosubmit');
+}
+
+let detachSupportTool = null;
+let simulationToolsDesired = false;
+let simulationToolLifecycle = Promise.resolve();
+let simulationToolVersion = 0;
+
+function setSimulationToolsActive(active) {
+  simulationToolsDesired = active;
+  const version = ++simulationToolVersion;
+
+  // 여행 탭 진입 시에는 네이티브 도구를 붙이기 전에 기존 도구를 즉시 제거한다.
+  if (!active) {
+    setDeclarativeSupportToolActive(false);
+    unregisterAllTools();
+    detachSupportTool?.();
+    detachSupportTool = null;
+    return simulationToolLifecycle;
+  }
+
+  simulationToolLifecycle = simulationToolLifecycle
+    .catch((error) => console.error('[WebMCP] 시뮬레이션 도구 전환 실패:', error))
+    .then(async () => {
+      if (
+        !simulationToolsDesired ||
+        version !== simulationToolVersion ||
+        detachSupportTool
+      ) {
+        return;
+      }
+
+      setDeclarativeSupportToolActive(true);
+      await registerAllTools();
+      if (!simulationToolsDesired || version !== simulationToolVersion) {
+        unregisterAllTools();
+        return;
+      }
+
+      const detach = await registerTool(supportToolDescriptor());
+      if (!simulationToolsDesired || version !== simulationToolVersion) {
+        detach();
+        unregisterAllTools();
+        return;
+      }
+      detachSupportTool = detach;
+    });
+
+  return simulationToolLifecycle;
+}
+
+// ---------------------------------------------------------------------------
+// 부팅
+// ---------------------------------------------------------------------------
+
+await setSimulationToolsActive(true);
 
 $('#demo-form-fill').addEventListener('click', async (event) => {
   const button = event.currentTarget;
