@@ -33,6 +33,98 @@ badge.title = `사용 가능한 메서드: ${runtime.methods.join(', ') || '(없
 console.log('[WebMCP] runtime =', runtime);
 
 // ---------------------------------------------------------------------------
+// 탭 + 두 탭을 잇는 딥링크
+//
+// 탭으로 갈라 놓되, 개념 문단에서 시뮬레이터의 "그 부분"으로 바로 갈 수 있게
+// 하고 반대 방향 링크도 둔다. 링크가 한쪽으로만 나 있으면 결국
+// "앱을 참조하는 문서"로 읽힌다.
+// ---------------------------------------------------------------------------
+
+const TABS = ['concept', 'sim'];
+let currentTab = 'concept';
+
+function selectTab(name, { push = true } = {}) {
+  if (!TABS.includes(name) || name === currentTab) return;
+  if (currentTab === 'sim') stopAuto(); // 안 보이는 탭에서 자동 재생이 도는 것을 막는다
+  currentTab = name;
+
+  for (const t of TABS) {
+    $(`#tab-${t}`).hidden = t !== name;
+    $(`#tab-btn-${t}`).setAttribute('aria-selected', String(t === name));
+  }
+  if (push) history.replaceState(null, '', `#${name}`);
+  window.scrollTo({ top: 0 });
+}
+
+document.querySelectorAll('.tab').forEach((btn) =>
+  btn.addEventListener('click', () => selectTab(btn.dataset.tab)),
+);
+
+/** 도착 지점을 잠깐 강조한다 — 어디로 왔는지 알 수 있게. */
+function land(el) {
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('landed');
+  void el.offsetWidth; // 애니메이션 재시작
+  el.classList.add('landed');
+  setTimeout(() => el.classList.remove('landed'), 3000);
+}
+
+/**
+ * data-goto 문법
+ *   concept:<섹션id>  개념 탭의 해당 절로
+ *   tool:<도구이름>    시뮬 탭 수동 호출에 그 도구를 세팅
+ *   scenario / form / refund / lifecycle
+ */
+function goTo(target) {
+  const [kind, arg] = target.split(':');
+
+  if (kind === 'concept') {
+    selectTab('concept');
+    setTimeout(() => land($(`#${arg}`)), 60);
+    return;
+  }
+
+  selectTab('sim');
+  setTimeout(() => {
+    if (kind === 'tool' || kind === 'refund') {
+      const name = kind === 'refund' ? 'issue_refund' : arg;
+      if ([...select.options].some((o) => o.value === name)) {
+        select.value = name;
+        showToolDesc();
+        fillSampleArgs();
+        if (kind === 'refund') {
+          $('#tool-args').value = JSON.stringify(
+            { orderId: 'ORD-1004', reason: '고객 변심' },
+            null,
+            2,
+          );
+        }
+      }
+      land($('#manual-block'));
+    } else if (kind === 'form') {
+      land($('#form-block'));
+    } else if (kind === 'lifecycle') {
+      openOrder('ORD-1002');
+      land($('#order-detail'));
+    } else {
+      land($('#stepper-block'));
+    }
+  }, 60);
+}
+
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-goto]');
+  if (link) goTo(link.dataset.goto);
+});
+
+// 사람 승인이 필요해지면 그 화면으로 데려온다
+document.addEventListener('approval-needed', () => {
+  selectTab('sim');
+  setTimeout(() => land($('#approvals')), 60);
+});
+
+// ---------------------------------------------------------------------------
 // 운영 화면 렌더링
 // ---------------------------------------------------------------------------
 
@@ -44,9 +136,9 @@ function renderOrders(s) {
   $('#orders tbody').innerHTML = s.orders
     .map(
       (o) => `<tr data-id="${o.id}">
-        <td>${o.id}${o.refunded ? ' ↩︎' : ''}</td>
+        <td class="mono">${o.id}${o.refunded ? ' ↩︎' : ''}</td>
         <td>${o.customer}</td>
-        <td>${o.items.map((i) => `${i.sku}×${i.qty}`).join(', ')}</td>
+        <td class="mono">${o.items.map((i) => `${i.sku}×${i.qty}`).join(', ')}</td>
         <td>${statusChip(o.status)}</td>
         <td><button class="link" data-open="${o.id}">열기</button></td>
       </tr>`,
@@ -59,7 +151,7 @@ function renderInventory(s) {
     .map((i) => {
       const avail = i.onHand - i.reserved;
       return `<tr>
-        <td><code>${i.sku}</code></td>
+        <td class="mono">${i.sku}</td>
         <td>${i.name}</td>
         <td>${i.onHand}</td>
         <td>${i.reserved}</td>
@@ -83,10 +175,12 @@ function renderApprovals(s) {
   $('#approvals').innerHTML = s.approvals
     .map(
       (a) => `<div class="approval">
-        <div class="t">승인 필요 — ${a.summary}</div>
-        <div class="d">${a.detail}</div>
-        <button class="approve" data-approve="${a.id}">승인</button>
-        <button class="reject" data-reject="${a.id}">거부</button>
+        <div class="t">⚠ 승인 필요 — ${a.summary}</div>
+        <div class="d">${a.detail}<br>도구는 이 버튼을 누를 때까지 대기 중이다.</div>
+        <div class="row">
+          <button class="approve" data-approve="${a.id}">승인</button>
+          <button class="reject" data-reject="${a.id}">거부</button>
+        </div>
       </div>`,
     )
     .join('');
@@ -94,7 +188,7 @@ function renderApprovals(s) {
 
 function renderAudit(s) {
   $('#audit').innerHTML = s.audit
-    .map((a) => `<li><span class="muted">${a.at}</span> · ${a.reason}</li>`)
+    .map((a) => `<li><span class="t">${a.at}</span> ${a.reason}</li>`)
     .join('');
 }
 
@@ -110,14 +204,16 @@ subscribe((s) => {
 // 상호작용
 // ---------------------------------------------------------------------------
 
+function openOrder(id) {
+  commit(`주문 상세 열기 ${id}`, (s) => {
+    s.selectedOrderId = id;
+  });
+  syncContextualTools();
+}
+
 document.addEventListener('click', (e) => {
   const open = e.target.dataset?.open;
-  if (open) {
-    commit(`주문 상세 열기 ${open}`, (s) => {
-      s.selectedOrderId = open;
-    });
-    syncContextualTools();
-  }
+  if (open) openOrder(open);
   const ap = e.target.dataset?.approve;
   if (ap) resolveApproval(ap, true);
   const rj = e.target.dataset?.reject;
@@ -157,9 +253,9 @@ $('#ticket-form').addEventListener('submit', (e) => {
 
 function addTicket(orderId, body, byAgent = false) {
   const li = document.createElement('li');
-  li.textContent =
-    `[${new Date().toLocaleTimeString('ko-KR')}]` +
-    `${byAgent ? ' 🤖' : ''} ${orderId} — ${body}`;
+  li.innerHTML =
+    `<span class="t">${new Date().toLocaleTimeString('ko-KR')}</span> ` +
+    `${byAgent ? '🤖 ' : ''}${escapeHtml(orderId)} — ${escapeHtml(body)}`;
   $('#tickets').prepend(li);
   commit(`문의 티켓 생성 (${orderId})${byAgent ? ' — 에이전트' : ''}`, () => {});
 }
@@ -335,7 +431,7 @@ async function nextStep() {
 
     // ① 판단 ② 호출 — 결과 자리는 비워 두고 먼저 보여준다
     setStepCard(
-      `<div class="step-kind ${meta.cls}">${meta.text}</div>
+      `<span class="chip ${meta.cls}">${meta.text}</span>
        <div class="step-block">
          <div class="step-label">① 에이전트의 판단</div>
          <p class="step-why">${escapeHtml(step.why)}</p>
@@ -372,12 +468,12 @@ async function nextStep() {
     if (failed) {
       $('#step-card').classList.remove(meta.cls);
       $('#step-card').classList.add('k-fail');
-      $('#step-card .step-kind').className = 'step-kind k-fail';
-      $('#step-card .step-kind').textContent = '행동 → 실패';
+      $('#step-card .chip').className = 'chip k-fail';
+      $('#step-card .chip').textContent = '행동 → 실패';
     }
     $('#step-result-block').innerHTML =
       `<div class="step-label">③ 결과</div>` +
-      `<pre class="step-result ${failed ? 'bad' : ''}">${escapeHtml(result)}</pre>` +
+      `<pre class="result ${failed ? 'bad' : ''}">${escapeHtml(result)}</pre>` +
       (failed
         ? `<p class="step-teach">↑ 예외를 던졌다면 여기서 끝났다.
              문장으로 돌려줬기 때문에 에이전트가 다음 수를 정할 수 있다.</p>`
@@ -475,9 +571,18 @@ await registerTool({
 
 fillSampleArgs();
 
+// 진입 시 탭 결정: ?tab= > #해시 > 기본(개념)
+const params = new URLSearchParams(location.search);
+const autostep = Number(params.get('autostep'));
+const wantsSim =
+  params.get('tab') === 'sim' ||
+  location.hash === '#sim' ||
+  (Number.isFinite(autostep) && autostep > 0);
+
+if (wantsSim) selectTab('sim', { push: false });
+
 // ?autostep=N — 로드 직후 N 단계를 자동 진행한다.
 // 시연용이자, 헤드리스 스크린샷으로 스테퍼를 검증하는 수단이다.
-const autostep = Number(new URLSearchParams(location.search).get('autostep'));
 if (Number.isFinite(autostep) && autostep > 0) {
   for (let i = 0; i < autostep; i++) await nextStep();
 }

@@ -110,6 +110,9 @@ export function requestApproval(summary, detail) {
     commit(`승인 요청 ${id}: ${summary}`, (s) => {
       s.approvals.push({ id, summary, detail, resolve });
     });
+    // 승인 카드는 시뮬레이션 탭에 있다. 개념 탭을 읽는 중이라면
+    // 아무것도 안 보인 채 Promise 만 매달려 있게 되므로 화면을 끌어온다.
+    document.dispatchEvent(new CustomEvent('approval-needed'));
   });
 }
 
