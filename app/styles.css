@@ -771,7 +771,7 @@ form label { display: block; margin-bottom: 12px; }
 .travel-hero h2 {
   margin: 0;
   color: #fffdf7;
-  font: 700 clamp(34px, 5vw, 62px)/1.08 Batang, "Nanum Myeongjo", serif;
+  font: 700 clamp(34px, 5vw, 62px)/1.08 var(--font);
   letter-spacing: -.055em;
 }
 .travel-dates { margin: 12px 0 24px; color: rgba(255, 255, 255, .7); font-size: 14px; }
