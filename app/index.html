@@ -737,7 +737,7 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
       </main>
     </section>
 
-    <!-- 탭 3 · 실제 사용자 화면. 조작 버튼 없이 브라우저 에이전트가 WebMCP로 처리한다. -->
+    <!-- 탭 3 · 실제 사용자 화면. 사람과 브라우저 에이전트가 같은 기능을 각자의 인터페이스로 사용한다. -->
     <section
       class="tab-panel native-lab"
       id="tab-native"
@@ -788,8 +788,33 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             </div>
             <div class="travel-progress" aria-hidden="true"><span id="native-progress"></span></div>
             <p id="native-progress-text" class="travel-progress-text">준비 현황을 불러오는 중입니다.</p>
+            <div class="native-manual-toolbar">
+              <div>
+                <span>직접 관리</span>
+                <p>사람이 조작하는 기능과 WebMCP 도구가 같은 작업 로직을 사용합니다.</p>
+              </div>
+              <button id="native-refresh-tasks" class="native-refresh-button" type="button">
+                <span aria-hidden="true">↻</span> 목록 새로고침
+              </button>
+            </div>
             <div id="native-task-list" class="native-task-list" aria-live="polite"></div>
-            <p class="agent-only-note">이 목록에는 조작 버튼이 없습니다. 변경은 연결된 브라우저 에이전트가 WebMCP 도구로 처리합니다.</p>
+            <form id="native-task-form" class="native-task-form">
+              <label class="native-task-title-field">
+                <span>새 준비 항목</span>
+                <input id="native-task-title" name="title" type="text" placeholder="예: 스이카 교통카드 준비하기" required minlength="1" />
+              </label>
+              <label>
+                <span>우선순위</span>
+                <select id="native-task-priority" name="priority">
+                  <option value="high">높음</option>
+                  <option value="normal" selected>보통</option>
+                  <option value="low">낮음</option>
+                </select>
+              </label>
+              <button type="submit">항목 추가</button>
+              <p id="native-task-form-feedback" class="native-task-form-feedback" aria-live="polite"></p>
+            </form>
+            <p class="agent-only-note">직접 체크하거나 추가할 수 있고, 같은 변경을 연결된 브라우저 에이전트에게 WebMCP 도구로 맡길 수도 있습니다.</p>
           </section>
 
           <aside class="travel-side">
@@ -835,7 +860,7 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
                 </div>
               </div>
               <ol id="native-event-log" class="native-event-log">
-                <li class="native-event-empty">에이전트가 처리한 내용이 여기에 표시됩니다.</li>
+                <li class="native-event-empty">사용자 또는 에이전트가 처리한 내용이 여기에 표시됩니다.</li>
               </ol>
             </section>
           </aside>
@@ -849,7 +874,7 @@ open_room_block 으로 객실을 추가 확보한 뒤 다시 시도하라.</pre>
             <div class="native-check" data-native-check="registration"><span class="native-check-dot"></span><div><b>여행 도구</b><span id="native-check-registration">대기 중</span></div></div>
           </div>
           <div class="native-tool-contract">
-            <code>list_trip_tasks</code><code>add_trip_task</code><code>complete_trip_task</code>
+            <code>list_trip_tasks</code><code>add_trip_task</code><code>complete_trip_task</code><code>reopen_trip_task</code>
           </div>
         </details>
       </main>

@@ -23,11 +23,13 @@ const tasks = [
 let nextTaskNumber = 4;
 let registrationController = null;
 let activationVersion = 0;
+let manualControlsBound = false;
 
 const TOOL_NAMES = [
   'list_trip_tasks',
   'add_trip_task',
   'complete_trip_task',
+  'reopen_trip_task',
 ];
 
 function escapeHtml(value) {
@@ -66,6 +68,51 @@ function showBlocker(html) {
   blocker.innerHTML = html;
 }
 
+function listTripTasks() {
+  return tasks.map((task) => ({ ...task }));
+}
+
+function addTripTask(title, priority) {
+  const cleanTitle = String(title ?? '').trim();
+  if (!cleanTitle || !['high', 'normal', 'low'].includes(priority)) {
+    return { ok: false, error: 'title과 priority(high, normal, low)를 확인해야 한다.' };
+  }
+
+  const task = {
+    id: `TRIP-${String(nextTaskNumber++).padStart(3, '0')}`,
+    title: cleanTitle,
+    priority,
+    completed: false,
+  };
+  tasks.push(task);
+  renderTasks();
+  return { ok: true, task: { ...task } };
+}
+
+function setTripTaskCompletion(taskId, completed) {
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task) return { ok: false, error: `${taskId} 작업을 찾을 수 없다.` };
+  if (task.completed === completed) {
+    return { ok: true, changed: false, task: { ...task } };
+  }
+
+  task.completed = completed;
+  renderTasks();
+  return { ok: true, changed: true, task: { ...task } };
+}
+
+function completeTripTask(taskId) {
+  const result = setTripTaskCompletion(taskId, true);
+  if (!result.ok || result.changed) return result;
+  return { ok: true, changed: false, alreadyCompleted: true, task: result.task };
+}
+
+function reopenTripTask(taskId) {
+  const result = setTripTaskCompletion(taskId, false);
+  if (!result.ok || result.changed) return result;
+  return { ok: true, changed: false, alreadyIncomplete: true, task: result.task };
+}
+
 function renderTasks() {
   const list = $('#native-task-list');
   const count = $('#native-task-count');
@@ -83,7 +130,7 @@ function renderTasks() {
     list.innerHTML = `
       <div class="native-empty">
         <span>∅</span>
-        <p>등록된 작업이 없다.<br />브라우저 에이전트의 도구 호출을 기다린다.</p>
+        <p>등록된 작업이 없습니다.<br />직접 추가하거나 에이전트에게 요청해보세요.</p>
       </div>`;
     return;
   }
@@ -93,23 +140,30 @@ function renderTasks() {
     .map(
       (task) => `
         <article class="native-task ${task.completed ? 'is-complete' : ''}">
-          <span class="native-task-check" aria-hidden="true">${task.completed ? '✓' : ''}</span>
-          <div class="native-task-content">
-          <div class="native-task-meta">
-            <code>${escapeHtml(task.id)}</code>
-            <span class="priority priority-${escapeHtml(task.priority)}">${escapeHtml(
-              priorityLabel[task.priority],
-            )}</span>
-          </div>
-          <p>${escapeHtml(task.title)}</p>
-          <span class="native-task-state">${task.completed ? '준비 완료' : '확인 필요'}</span>
-          </div>
+          <input
+            id="native-check-${escapeHtml(task.id)}"
+            class="native-task-check"
+            type="checkbox"
+            data-task-id="${escapeHtml(task.id)}"
+            aria-label="‘${escapeHtml(task.title)}’ ${task.completed ? '미완료로 전환' : '완료 처리'}"
+            ${task.completed ? 'checked' : ''}
+          />
+          <label class="native-task-content" for="native-check-${escapeHtml(task.id)}">
+            <span class="native-task-meta">
+              <code>${escapeHtml(task.id)}</code>
+              <span class="priority priority-${escapeHtml(task.priority)}">${escapeHtml(
+                priorityLabel[task.priority],
+              )}</span>
+            </span>
+            <span class="native-task-title">${escapeHtml(task.title)}</span>
+            <span class="native-task-state">${task.completed ? '체크 해제하여 미완료' : '체크하여 완료'}</span>
+          </label>
         </article>`,
     )
     .join('');
 }
 
-function logInvocation(toolName, args, result) {
+function logActivity(actor, result) {
   const log = $('#native-event-log');
   if (!log) return;
   log.querySelector('.native-event-empty')?.remove();
@@ -117,16 +171,75 @@ function logInvocation(toolName, args, result) {
   const item = document.createElement('li');
   item.className = 'native-event';
   item.innerHTML = `
-    <span class="native-event-icon" aria-hidden="true">✦</span>
+    <span class="native-event-icon" aria-hidden="true">${actor === '사용자' ? '●' : '✦'}</span>
     <div>
       <b>${escapeHtml(result)}</b>
-      <span>AI 에이전트 · ${new Date().toLocaleTimeString('ko-KR', {
+      <span>${escapeHtml(actor)} · ${new Date().toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit',
       })}</span>
     </div>`;
   log.prepend(item);
+}
+
+function logInvocation(toolName, args, result) {
+  logActivity('AI 에이전트', result);
   setStatus('ready', '에이전트가 방금 처리함');
+}
+
+function setManualFeedback(text, isError = false) {
+  const feedback = $('#native-task-form-feedback');
+  if (!feedback) return;
+  feedback.textContent = text;
+  feedback.classList.toggle('is-error', isError);
+}
+
+function bindManualControls() {
+  if (manualControlsBound) return;
+  const list = $('#native-task-list');
+  const refresh = $('#native-refresh-tasks');
+  const form = $('#native-task-form');
+  if (!list || !refresh || !form) return;
+  manualControlsBound = true;
+
+  refresh.addEventListener('click', () => {
+    const currentTasks = listTripTasks();
+    renderTasks();
+    setManualFeedback(`현재 준비 항목 ${currentTasks.length}개를 새로 확인했습니다.`);
+    logActivity('사용자', `여행 준비 ${currentTasks.length}개를 새로 확인했습니다.`);
+  });
+
+  list.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('.native-task-check');
+    if (!checkbox) return;
+    const shouldComplete = checkbox.checked;
+    const result = shouldComplete
+      ? completeTripTask(checkbox.dataset.taskId)
+      : reopenTripTask(checkbox.dataset.taskId);
+    if (!result.ok) {
+      renderTasks();
+      setManualFeedback(result.error, true);
+      return;
+    }
+    const message = shouldComplete
+      ? `‘${result.task.title}’ 준비를 완료했습니다.`
+      : `‘${result.task.title}’ 준비를 미완료로 전환했습니다.`;
+    setManualFeedback(message);
+    logActivity('사용자', message);
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const formData = new FormData(form);
+    const result = addTripTask(formData.get('title'), formData.get('priority'));
+    if (!result.ok) {
+      setManualFeedback(result.error, true);
+      return;
+    }
+    form.reset();
+    setManualFeedback(`‘${result.task.title}’ 준비를 추가했습니다.`);
+    logActivity('사용자', `‘${result.task.title}’ 준비를 추가했습니다.`);
+  });
 }
 
 function getNativeContext() {
@@ -147,7 +260,7 @@ function nativeTools() {
         untrustedContentHint: true,
       },
       async execute(args = {}) {
-        const result = tasks.map((task) => ({ ...task }));
+        const result = listTripTasks();
         logInvocation('list_trip_tasks', args, `여행 준비 ${result.length}개를 확인했습니다.`);
         return toolResult({ count: result.length, tasks: result });
       },
@@ -172,23 +285,13 @@ function nativeTools() {
       },
       annotations: { untrustedContentHint: true },
       async execute({ title, priority }) {
-        const cleanTitle = String(title ?? '').trim();
-        if (!cleanTitle || !['high', 'normal', 'low'].includes(priority)) {
-          const message = 'title과 priority(high, normal, low)를 확인해야 한다.';
-          logInvocation('add_trip_task', { title, priority }, message);
-          return toolResult({ ok: false, error: message });
+        const result = addTripTask(title, priority);
+        if (!result.ok) {
+          logInvocation('add_trip_task', { title, priority }, result.error);
+          return toolResult(result);
         }
-
-        const task = {
-          id: `TRIP-${String(nextTaskNumber++).padStart(3, '0')}`,
-          title: cleanTitle,
-          priority,
-          completed: false,
-        };
-        tasks.push(task);
-        renderTasks();
-        logInvocation('add_trip_task', { title: cleanTitle, priority }, `‘${cleanTitle}’ 준비를 추가했습니다.`);
-        return toolResult({ ok: true, task: { ...task } });
+        logInvocation('add_trip_task', { title, priority }, `‘${result.task.title}’ 준비를 추가했습니다.`);
+        return toolResult(result);
       },
     },
     {
@@ -210,22 +313,49 @@ function nativeTools() {
       },
       annotations: { untrustedContentHint: true },
       async execute({ taskId }) {
-        const task = tasks.find((candidate) => candidate.id === taskId);
-        if (!task) {
-          const message = `${taskId} 작업을 찾을 수 없다.`;
-          logInvocation('complete_trip_task', { taskId }, message);
-          return toolResult({ ok: false, error: message });
+        const result = completeTripTask(taskId);
+        if (!result.ok) {
+          logInvocation('complete_trip_task', { taskId }, result.error);
+          return toolResult(result);
         }
-        if (task.completed) {
-          const message = `${taskId} 작업은 이미 완료되었다.`;
-          logInvocation('complete_trip_task', { taskId }, message);
-          return toolResult({ ok: true, alreadyCompleted: true, task: { ...task } });
+        if (result.alreadyCompleted) {
+          logInvocation('complete_trip_task', { taskId }, `${taskId} 작업은 이미 완료되었습니다.`);
+          return toolResult(result);
         }
-
-        task.completed = true;
-        renderTasks();
-        logInvocation('complete_trip_task', { taskId }, `‘${task.title}’ 준비를 완료했습니다.`);
-        return toolResult({ ok: true, task: { ...task } });
+        logInvocation('complete_trip_task', { taskId }, `‘${result.task.title}’ 준비를 완료했습니다.`);
+        return toolResult(result);
+      },
+    },
+    {
+      name: 'reopen_trip_task',
+      title: '여행 준비 미완료 전환',
+      description:
+        '현재 도쿄 여행 준비 목록에서 완료된 항목을 다시 미완료 상태로 전환한다. 먼저 목록을 조회하여 정확한 taskId를 확인한 뒤 사용한다.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          taskId: {
+            type: 'string',
+            pattern: '^TRIP-[0-9]{3}$',
+            description: '미완료로 전환할 준비 항목 ID. 예: TRIP-002',
+          },
+        },
+        required: ['taskId'],
+        additionalProperties: false,
+      },
+      annotations: { untrustedContentHint: true },
+      async execute({ taskId }) {
+        const result = reopenTripTask(taskId);
+        if (!result.ok) {
+          logInvocation('reopen_trip_task', { taskId }, result.error);
+          return toolResult(result);
+        }
+        if (result.alreadyIncomplete) {
+          logInvocation('reopen_trip_task', { taskId }, `${taskId} 작업은 이미 미완료 상태입니다.`);
+          return toolResult(result);
+        }
+        logInvocation('reopen_trip_task', { taskId }, `‘${result.task.title}’ 준비를 미완료로 전환했습니다.`);
+        return toolResult(result);
       },
     },
   ];
@@ -235,6 +365,7 @@ export async function activateNativeDemo() {
   const version = ++activationVersion;
   registrationController?.abort();
   registrationController = null;
+  bindManualControls();
   renderTasks();
   showBlocker('');
   setStatus('checking', '네이티브 API 확인 중');
