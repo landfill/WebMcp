@@ -398,9 +398,9 @@ form label { display: block; margin-bottom: 12px; }
 
 /* 표 */
 .grid { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+/* 헤더는 한국어라 uppercase 와 넓은 자간이 아무 일도 하지 않는다. 굵기로만 구분한다. */
 .grid th {
-  text-align: left; color: var(--text-3); font-weight: 500; font-size: var(--t-label);
-  letter-spacing: .05em; text-transform: uppercase;
+  text-align: left; color: var(--text-3); font-weight: 600; font-size: var(--t-label);
   padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2);
 }
 .grid td { padding: 10px 18px; border-bottom: 1px solid var(--line); color: var(--text-2); }
@@ -455,7 +455,7 @@ form label { display: block; margin-bottom: 12px; }
 .step-block { margin-bottom: 16px; }
 .step-block:last-child { margin-bottom: 0; }
 .step-label {
-  font-size: var(--t-label); letter-spacing: .09em; text-transform: uppercase;
+  font-size: var(--t-label); font-weight: 600;
   color: #66707f; margin-bottom: 6px;
 }
 .step-why { margin: 0; font-size: 15px; line-height: 1.75; color: var(--text); }
@@ -517,6 +517,18 @@ form label { display: block; margin-bottom: 12px; }
 @keyframes agentPulse {
   0%, 100% { outline-color: var(--cyan); }
   50%      { outline-color: #0b6b80; }
+}
+
+/* 시뮬레이션 탭의 움직임은 전부 피드백용이라 꺼도 정보가 사라지지 않는다.
+   폼 테두리의 청록색과 강조된 행은 애니메이션 없이도 그대로 남는다. */
+@media (prefers-reduced-motion: reduce) {
+  #tab-sim *,
+  #tab-sim *::before,
+  #tab-sim *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ===========================================================================
