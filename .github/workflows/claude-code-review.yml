@@ -52,7 +52,7 @@ jobs:
             remain. Include the findings, or explicitly say that no issues were found. End that comment
             with this exact marker on its own line:
 
-            <!-- claude-review:${{ github.event.pull_request.head.sha }} -->
+            <!-- claude-review:${{ github.event.pull_request.head.sha }}:${{ github.run_id }}:${{ github.run_attempt }} -->
 
             Use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true` for each
             actionable line-specific finding. Do not finish until `gh pr comment` returns the URL of the
@@ -75,10 +75,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          REVIEW_MARKER: '<!-- claude-review:${{ github.event.pull_request.head.sha }} -->'
+          REVIEW_MARKER: '<!-- claude-review:${{ github.event.pull_request.head.sha }}:${{ github.run_id }}:${{ github.run_attempt }} -->'
         run: |
-          if ! gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-            --paginate --jq '.[].body' | grep -Fq "${REVIEW_MARKER}"; then
+          comments="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --paginate --jq '.[].body')"
+          marker_count="$(grep -Fxc "${REVIEW_MARKER}" <<<"${comments}" || true)"
+          if [[ "${marker_count}" -ne 1 ]]; then
             echo "::error::Claude review completed without publishing its required PR summary."
             exit 1
           fi

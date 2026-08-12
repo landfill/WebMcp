@@ -31,6 +31,7 @@ const TOOL_NAMES = [
   'complete_trip_task',
   'reopen_trip_task',
 ];
+const TRIP_TASK_ID_PATTERN = '^TRIP-[0-9]{3,}$';
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -304,7 +305,7 @@ function nativeTools() {
         properties: {
           taskId: {
             type: 'string',
-            pattern: '^TRIP-[0-9]{3}$',
+            pattern: TRIP_TASK_ID_PATTERN,
             description: '완료할 준비 항목 ID. 예: TRIP-001',
           },
         },
@@ -336,7 +337,7 @@ function nativeTools() {
         properties: {
           taskId: {
             type: 'string',
-            pattern: '^TRIP-[0-9]{3}$',
+            pattern: TRIP_TASK_ID_PATTERN,
             description: '미완료로 전환할 준비 항목 ID. 예: TRIP-002',
           },
         },
