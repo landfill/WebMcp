@@ -205,7 +205,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 에이전트 쪽(시나리오 스테퍼, 수동 호출, 로그)이다. 시뮬레이션의 각 블록에는 개념
 탭의 해당 절로 돌아가는 역방향 링크가 있다.
 
-**3 · AI 여행 준비** — 부산 여행 일정과 출발 전 체크리스트를 보여주는 사용자용
+**3 · AI 여행 준비** — 도쿄 여행 일정과 출발 전 체크리스트를 보여주는 사용자용
 서비스 화면이다. 사람용 추가·완료 버튼은 없으며, Chrome의 WebMCP 에이전트가 목록을
 조회하고 변경한다. 내부적으로 `document.modelContext.registerTool()`로 여행 도구 세
 개를 직접 등록하고, shim이나 페이지 내부 호출은 제공하지 않는다. 탭을 벗어나면
@@ -229,7 +229,7 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 
 실제 탭에서 브라우저 에이전트에게 다음과 같이 지시할 수 있다.
 
-> 이 여행의 준비 목록을 확인하고, 숙소 체크인 시간 확인 작업을 완료해줘.
+> 도쿄 여행 준비 목록을 확인하고, 호텔 체크인 가능 시간 확인 작업을 완료해줘.
 
 이 호출이 성립하려면 HTTPS 또는 localhost 주소의 사이트를 WebMCP가 활성화된
 Chrome으로 직접 열고,
@@ -430,7 +430,7 @@ index.html
 | `tools.js` | 시뮬 탭 도구 7+1개 정의. 예약 상세 열림 시 `add_booking_note` 조건부 등록 | `registerAllTools`, `unregisterAllTools`, `syncContextualTools` |
 | `store.js` | 예약·객실 재고 시드 데이터, `commit`/`subscribe`, `requestApproval` | `state`, `commit`, `SHORTAGE_MARK` |
 | `scenario.js` | `next()` 시점의 실제 `state`를 읽어 다음 수를 정하는 async generator | `scenario` |
-| `native-demo.js` | 부산 여행 준비 탭. shim·페이지 내부 호출 없이 `document.modelContext`만 사용 | `activateNativeDemo`, `deactivateNativeDemo` |
+| `native-demo.js` | 도쿄 여행 준비 탭. shim·페이지 내부 호출 없이 `document.modelContext`만 사용 | `activateNativeDemo`, `deactivateNativeDemo` |
 
 ### 탭별 코드 경로
 

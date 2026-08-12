@@ -3,19 +3,19 @@ const $ = (selector) => document.querySelector(selector);
 const tasks = [
   {
     id: 'TRIP-001',
-    title: '숙소에 체크인 가능 시간 확인하기',
+    title: '호텔 체크인 가능 시간 확인하기',
     priority: 'high',
     completed: false,
   },
   {
     id: 'TRIP-002',
-    title: 'KTX 모바일 승차권 저장하기',
-    priority: 'normal',
+    title: 'Visit Japan Web 입국 정보 등록하기',
+    priority: 'high',
     completed: true,
   },
   {
     id: 'TRIP-003',
-    title: '부산 날씨 확인하고 우산 준비 결정하기',
+    title: '도쿄 날씨 확인하고 우산 준비 결정하기',
     priority: 'low',
     completed: false,
   },
@@ -140,7 +140,7 @@ function nativeTools() {
       name: 'list_trip_tasks',
       title: '여행 준비 목록 조회',
       description:
-        '현재 부산 여행의 출발 전 준비 목록을 조회한다. 준비 항목을 추가하거나 완료하기 전에 현재 상태와 정확한 taskId를 확인할 때 사용한다.',
+        '현재 도쿄 여행의 출발 전 준비 목록을 조회한다. 준비 항목을 추가하거나 완료하기 전에 현재 상태와 정확한 taskId를 확인할 때 사용한다.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: {
         readOnlyHint: true,
@@ -156,7 +156,7 @@ function nativeTools() {
       name: 'add_trip_task',
       title: '여행 준비 추가',
       description:
-        '사용자가 부산 여행 전에 해야 할 새로운 준비 항목을 목록에 추가한다. title에는 구체적인 행동을 적고 priority는 high, normal, low 중 하나를 사용한다.',
+        '사용자가 도쿄 여행 전에 해야 할 새로운 준비 항목을 목록에 추가한다. title에는 구체적인 행동을 적고 priority는 high, normal, low 중 하나를 사용한다.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -195,7 +195,7 @@ function nativeTools() {
       name: 'complete_trip_task',
       title: '여행 준비 완료',
       description:
-        '현재 부산 여행 준비 목록에서 지정한 항목을 완료 처리한다. 먼저 목록을 조회하여 정확한 taskId를 확인한 뒤 사용한다.',
+        '현재 도쿄 여행 준비 목록에서 지정한 항목을 완료 처리한다. 먼저 목록을 조회하여 정확한 taskId를 확인한 뒤 사용한다.',
       inputSchema: {
         type: 'object',
         properties: {
