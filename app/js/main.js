@@ -189,7 +189,7 @@ function renderVerify() {
     .map(
       (t) =>
         `<li><span class="t">${t.accepted ? '✓' : '✕'}</span> ${t.name}` +
-        (t.error ? ` — <span style="color:var(--bad)">${escapeHtml(t.error)}</span>` : '') +
+        (t.error ? `: <span style="color:var(--bad)">${escapeHtml(t.error)}</span>` : '') +
         `</li>`,
     )
     .join('');
@@ -203,8 +203,8 @@ function renderVerify() {
     <table class="grid" style="margin: 4px 0 14px">
       <thead><tr><th>확인 대상</th><th>시뮬레이터</th><th>DevTools 패널</th></tr></thead>
       <tbody>
-        <tr><td>execute() 로직이 맞는가</td><td>✓</td><td>—</td></tr>
-        <tr><td>registerTool() 이 예외 없이 통과했는가</td><td>✓</td><td>—</td></tr>
+        <tr><td>execute() 로직이 맞는가</td><td>✓</td><td>해당 없음</td></tr>
+        <tr><td>registerTool() 이 예외 없이 통과했는가</td><td>✓</td><td>해당 없음</td></tr>
         <tr><td>브라우저가 도구를 열거하는가</td><td class="zero">✕</td><td>✓</td></tr>
         <tr><td>선언형 폼이 도구로 합성됐는가</td><td class="zero">✕</td><td>✓</td></tr>
         <tr><td>브라우저 경로로 실제 호출되는가</td><td class="zero">✕</td><td>✓</td></tr>
@@ -327,7 +327,7 @@ function renderApprovals(s) {
   $('#approvals').innerHTML = s.approvals
     .map(
       (a) => `<div class="approval">
-        <div class="t">⚠ 승인 필요 — ${a.summary}</div>
+        <div class="t">승인 필요: ${a.summary}</div>
         <div class="d">${a.detail}<br>도구는 이 버튼을 누를 때까지 대기 중이다.</div>
         <div class="row">
           <button class="approve" data-approve="${a.id}">승인</button>
@@ -398,7 +398,7 @@ $('#ticket-form').addEventListener('submit', (e) => {
 
   if (byAgent && typeof e.respondWith === 'function') {
     e.respondWith(
-      Promise.resolve(textResult(`티켓 생성됨: ${bookingId} — ${body}`)),
+      Promise.resolve(textResult(`티켓 생성됨: ${bookingId}. ${body}`)),
     );
   }
 });
@@ -407,10 +407,10 @@ function addTicket(bookingId, body, byAgent = false) {
   const li = document.createElement('li');
   li.innerHTML =
     `<span class="t">${new Date().toLocaleTimeString('ko-KR')}</span> ` +
-    `${byAgent ? '🤖 ' : ''}${escapeHtml(bookingId)} — ${escapeHtml(body)}`;
+    `${byAgent ? '[에이전트] ' : ''}${escapeHtml(bookingId)}: ${escapeHtml(body)}`;
   $('#tickets').prepend(li);
   commit(
-    `문의 티켓 생성 (${bookingId})${byAgent ? ' — 에이전트' : ''}`,
+    `문의 티켓 생성 (${bookingId})${byAgent ? ', 에이전트' : ''}`,
     () => {},
   );
 }
@@ -717,7 +717,7 @@ function supportToolDescriptor() {
         form.classList.remove('tool-form-active');
         agentDrivingForm = false;
       }
-      return textResult(`티켓 생성됨: ${bookingId} — ${body}`);
+      return textResult(`티켓 생성됨: ${bookingId}. ${body}`);
     },
   };
 }
