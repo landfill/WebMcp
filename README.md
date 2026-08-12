@@ -206,10 +206,12 @@ shim은 **네이티브가 없을 때만** 설치된다(`app/js/webmcp.js`). 이�
 탭의 해당 절로 돌아가는 역방향 링크가 있다.
 
 **3 · AI 여행 준비** — 도쿄 여행 일정과 출발 전 체크리스트를 보여주는 사용자용
-서비스 화면이다. 사람용 추가·완료 버튼은 없으며, Chrome의 WebMCP 에이전트가 목록을
-조회하고 변경한다. 내부적으로 `document.modelContext.registerTool()`로 여행 도구 세
-개를 직접 등록하고, shim이나 페이지 내부 호출은 제공하지 않는다. 탭을 벗어나면
-`AbortController`로 세 도구를 해제한다.
+서비스 화면이다. 사람은 새로고침 버튼, 항목 추가 폼, 각 항목의 원형 체크박스로 목록을
+직접 관리할 수 있고, Chrome의 WebMCP 에이전트도 같은 작업 로직을 네 도구로 수행한다.
+체크박스를 해제하면 완료 항목이 미완료로 돌아가며, 에이전트는 `reopen_trip_task`로 같은
+변경을 수행한다. 내부적으로 `document.modelContext.registerTool()`로 여행 도구 네 개를
+직접 등록하며, shim이나 페이지 내부 도구 호출은 제공하지 않는다. 탭을 벗어나면
+`AbortController`로 네 도구를 해제한다.
 
 개념 탭과 시뮬레이션 탭은 **같은 컴포넌트와 같은 타입 스케일**을 쓴다
 (`.card`, `.code`, `.chip`, `.result`, `.callout`). 개념 탭의 비교 도식과 스테퍼
@@ -430,7 +432,7 @@ index.html
 | `tools.js` | 시뮬 탭 도구 7+1개 정의. 예약 상세 열림 시 `add_booking_note` 조건부 등록 | `registerAllTools`, `unregisterAllTools`, `syncContextualTools` |
 | `store.js` | 예약·객실 재고 시드 데이터, `commit`/`subscribe`, `requestApproval` | `state`, `commit`, `SHORTAGE_MARK` |
 | `scenario.js` | `next()` 시점의 실제 `state`를 읽어 다음 수를 정하는 async generator | `scenario` |
-| `native-demo.js` | 도쿄 여행 준비 탭. shim·페이지 내부 호출 없이 `document.modelContext`만 사용 | `activateNativeDemo`, `deactivateNativeDemo` |
+| `native-demo.js` | 도쿄 여행 준비 탭. 사람용 UI와 네이티브 도구가 공통 작업 로직을 사용 | `activateNativeDemo`, `deactivateNativeDemo` |
 
 ### 탭별 코드 경로
 
@@ -438,7 +440,7 @@ index.html
 |---|---|---|
 | 1 · 개념 | `index.html` 정적 문서 + `data-goto` 딥링크 | 시뮬 도구는 **백그라운드 등록** (`setSimulationToolsActive(true)` — 부팅 시·이 탭에서도 유지) |
 | 2 · 시뮬레이션 | `tools.js` → `webmcp.js` → `main.js` 시뮬레이터 | 탭 1과 동일한 시뮬 도구 + UI에서 수동 호출·스테퍼 |
-| 3 · AI 여행 준비 | `native-demo.js` → Chrome 에이전트 | `list_trip_tasks` / `add_trip_task` / `complete_trip_task` (탭 진입 시만) |
+| 3 · AI 여행 준비 | `native-demo.js` → Chrome 에이전트 | `list_trip_tasks` / `add_trip_task` / `complete_trip_task` / `reopen_trip_task` (탭 진입 시만) |
 
 탭 1·2와 3은 **동시에 도구를 등록하지 않는다.** `main.js`의 `selectTab()`이
 `native`가 아닐 때 `setSimulationToolsActive(true)`, `native`일 때 시뮬 도구를 해제하고

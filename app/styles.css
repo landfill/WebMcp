@@ -876,6 +876,33 @@ form label { display: block; margin-bottom: 12px; }
 .travel-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--travel-green); transition: width .6s cubic-bezier(.2,.8,.2,1); }
 .travel-progress-text { margin: 7px 0 21px; color: var(--travel-muted); font-size: 11.5px; }
 
+.native-manual-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #d8e5df;
+  border-radius: 11px;
+  background: #f3f8f5;
+}
+.native-manual-toolbar > div > span {
+  display: block;
+  color: var(--travel-green);
+  font: 750 9px/1.3 var(--mono);
+  letter-spacing: .11em;
+}
+.native-manual-toolbar p { margin: 3px 0 0; color: var(--travel-muted); font-size: 10.5px; }
+.native-refresh-button {
+  flex: none;
+  border: 1px solid #bad8cf;
+  background: #fffefb;
+  color: var(--travel-green);
+  font-size: 10.5px;
+}
+.native-refresh-button span { display: inline-block; margin-right: 3px; font-size: 13px; }
+
 .native-task-list { min-height: 0; gap: 9px; }
 .native-task {
   display: grid;
@@ -891,27 +918,78 @@ form label { display: block; margin-bottom: 12px; }
 }
 .native-task:hover { transform: translateY(-1px); border-color: #b9cec8; }
 .native-task.is-complete { opacity: 1; border-left-color: #c7ded7; background: #f2f7f4; }
-.native-task.is-complete p { color: #79837f; text-decoration: line-through; }
+.native-task.is-complete .native-task-title { color: #79837f; text-decoration: line-through; }
 .native-task-check {
+  appearance: none;
   width: 27px;
   height: 27px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1.5px solid #c9c8c0;
   border-radius: 50%;
+  background: #fffefb;
   color: white;
   font-size: 13px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s, transform .2s;
 }
-.is-complete .native-task-check { border-color: var(--travel-green); background: var(--travel-green); }
-.native-task-content { min-width: 0; }
+.native-task-check::after {
+  width: 6px;
+  height: 10px;
+  content: "";
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  opacity: 0;
+  transform: rotate(45deg) scale(.65);
+  transition: opacity .2s, transform .2s;
+}
+.native-task-check:hover:not(:disabled) { border-color: var(--travel-green); transform: scale(1.06); }
+.native-task-check:focus-visible { outline: 3px solid rgba(20, 117, 98, .22); outline-offset: 3px; }
+.native-task-check:checked { border-color: var(--travel-green); background: var(--travel-green); }
+.native-task-check:checked::after { opacity: 1; transform: rotate(45deg) scale(1); }
+.native-task-check:disabled { opacity: 1; cursor: default; }
+.native-task-content { min-width: 0; cursor: pointer; }
 .native-task-meta { justify-content: flex-start; gap: 8px; }
 .native-task-meta code { color: #9b978c; background: none; padding: 0; font-size: 9.5px; }
-.native-task p { margin: 4px 0 3px; color: var(--travel-ink); font-size: 14px; font-weight: 650; }
+.native-task-title { display: block; margin: 4px 0 3px; color: var(--travel-ink); font-size: 14px; font-weight: 650; }
 .native-task-state { color: #898f8b; font-size: 9.5px; letter-spacing: .08em; }
 .priority { padding: 2px 6px; }
 .priority-high { color: #b25039; background: #fde9e3; }
 .priority-normal { color: #91701e; background: #faf1d6; }
 .priority-low { color: #2c7565; background: #e3f3ed; }
+.native-task-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  align-items: end;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed #c9d7d1;
+  border-radius: 12px;
+  background: #fafbf8;
+}
+.native-task-form label { margin: 0; }
+.native-task-form label > span { margin-bottom: 4px; color: #727b76; font-size: 9.5px; }
+.native-task-form input,
+.native-task-form select {
+  min-height: 36px;
+  border-color: #d6d8d2;
+  background: #fffefb;
+  color: var(--travel-ink);
+  font-size: 11px;
+}
+.native-task-form input:focus,
+.native-task-form select:focus { outline-color: rgba(20, 117, 98, .32); }
+.native-task-form button {
+  min-height: 36px;
+  background: var(--travel-green);
+  color: white;
+  font-size: 10.5px;
+}
+.native-task-form-feedback { grid-column: 1 / -1; margin: 0; color: var(--travel-green); font-size: 10px; }
+.native-task-form-feedback:empty { display: none; }
+.native-task-form-feedback.is-error { color: #a64531; }
 .agent-only-note { margin: 18px 0 0; color: #8b8c84; font-size: 11px; line-height: 1.6; }
 
 .travel-side { display: grid; align-content: start; gap: 18px; }
@@ -1003,5 +1081,8 @@ form label { display: block; margin-bottom: 12px; }
   .travel-checklist,
   .agent-steps,
   .native-events { padding: 21px; }
+  .native-manual-toolbar { align-items: flex-start; }
+  .native-task-form { grid-template-columns: 1fr; }
+  .native-task-form-feedback { grid-column: 1; }
   .native-technical .native-check-grid { grid-template-columns: 1fr; }
 }
