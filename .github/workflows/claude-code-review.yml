@@ -66,7 +66,12 @@ jobs:
           # or https://code.claude.com/docs/en/cli-reference for available options
 
       - name: Verify review summary was published
-        if: always() && steps.claude-review.outcome == 'success'
+        # Workflow edits are intentionally skipped until this file matches the
+        # default branch. A real Claude run always produces an execution file.
+        if: >-
+          always() &&
+          steps.claude-review.outcome == 'success' &&
+          steps.claude-review.outputs.execution_file != ''
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
